@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+*.pyo
+*.bak
+
+logs/
+secrets/*.txt
+secrets/*.json
+secrets/*.pem
+!secrets/*.example.json
+!secrets/README.md
