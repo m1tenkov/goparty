@@ -239,6 +239,11 @@ def get_profile_by_vk_user_id(vk_user_id):
         return _build_profile(cursor.fetchone())
 
 
+def is_profile_banned(vk_user_id):
+    profile = get_profile_by_vk_user_id(vk_user_id)
+    return bool(profile and profile.get("is_banned"))
+
+
 def clear_received_dislikes(vk_user_id):
     user_row = get_user_row_by_vk_user_id(vk_user_id)
     if not user_row:
@@ -324,6 +329,9 @@ def get_next_pending_like_profile(vk_user_id):
 
 
 def enqueue_pending_like(liker_vk_user_id, target_vk_user_id, like_message=None):
+    if is_profile_banned(liker_vk_user_id):
+        return False
+
     liker_user = get_or_create_user(liker_vk_user_id)
     target_user = get_or_create_user(target_vk_user_id)
 
@@ -728,6 +736,8 @@ def record_interaction(from_vk_user_id, to_vk_user_id, action):
         raise ValueError("Unsupported action")
     if from_vk_user_id == to_vk_user_id:
         return {"matched": False, "target_profile": get_profile_by_vk_user_id(to_vk_user_id)}
+    if action == "like" and is_profile_banned(from_vk_user_id):
+        return {"matched": False, "target_profile": get_profile_by_vk_user_id(to_vk_user_id), "blocked_by_ban": True}
 
     from_user = get_or_create_user(from_vk_user_id)
     to_user = get_or_create_user(to_vk_user_id)

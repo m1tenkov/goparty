@@ -6,6 +6,7 @@ from database import (
     delete_user_data,
     enqueue_pending_like,
     get_profile_by_vk_user_id,
+    is_profile_banned,
     is_bot_vk_user_id,
     mark_profile_delivery_unavailable,
     mark_pending_like_notified,
@@ -450,9 +451,17 @@ def handle_like_message_input(vk, user, raw_text, attachments, send):
             user["history_cursor_created_at"] = None
         resume_after_like_message(user, send)
         return
+    if is_profile_banned(user["vk_user_id"]):
+        user["current_candidate"] = None
+        resume_after_like_message(user, send)
+        return
 
     log_action("interaction_attempt", vk_user_id=user["vk_user_id"], target_vk_user_id=target_vk_user_id, interaction_type="like_message")
     result = record_interaction(user["vk_user_id"], target_vk_user_id, "like")
+    if result.get("blocked_by_ban"):
+        user["current_candidate"] = None
+        resume_after_like_message(user, send)
+        return
     resolve_pending_like(user["vk_user_id"], target_vk_user_id, "like")
     log_action("interaction_saved", vk_user_id=user["vk_user_id"], target_vk_user_id=target_vk_user_id, interaction_type="like_message", matched=result.get("matched"))
 
@@ -945,9 +954,17 @@ def handle_browse(vk, user, normalized_text, send):
             user["current_candidate"] = None
             show_next_candidate(vk_user_id, send)
             return
+        if is_profile_banned(vk_user_id):
+            user["current_candidate"] = None
+            show_next_candidate(vk_user_id, send)
+            return
         liker_profile = get_profile_by_vk_user_id(vk_user_id) or user
         log_action("interaction_attempt", vk_user_id=vk_user_id, target_vk_user_id=candidate["vk_user_id"], interaction_type="like")
         result = record_interaction(vk_user_id, candidate["vk_user_id"], "like")
+        if result.get("blocked_by_ban"):
+            user["current_candidate"] = None
+            show_next_candidate(vk_user_id, send)
+            return
         resolve_pending_like(vk_user_id, candidate["vk_user_id"], "like")
         log_action("interaction_saved", vk_user_id=vk_user_id, target_vk_user_id=candidate["vk_user_id"], interaction_type="like", matched=result.get("matched"))
         if result["matched"]:
@@ -977,6 +994,10 @@ def handle_browse(vk, user, normalized_text, send):
             )
             return
         if is_duplicate_action(user, f"browse:like_message:{candidate_vk_user_id}"):
+            return
+        if is_profile_banned(vk_user_id):
+            user["current_candidate"] = None
+            show_next_candidate(vk_user_id, send)
             return
         start_like_message_flow(user, send)
         return
