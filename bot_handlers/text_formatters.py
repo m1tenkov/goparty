@@ -1,6 +1,7 @@
 from . import texts
 
 
+# Формирует основной текст анкеты для экранов обзора и просмотра.
 def format_profile_text(name, age, city, games_text, about, include_review=False):
     text = texts.TEMPLATE_PROFILE_TEXT.format(
         name=name,
@@ -15,6 +16,7 @@ def format_profile_text(name, age, city, games_text, about, include_review=False
     return text
 
 
+# Формирует короткое текстовое резюме выбранных игр.
 def format_games_summary(games_text):
     return texts.TEMPLATE_GAMES_SUMMARY.format(
         prefix=texts.MSG_GAMES_SUMMARY_PREFIX,
@@ -22,6 +24,7 @@ def format_games_summary(games_text):
     )
 
 
+# Форматирует уведомление, которое пользователь получает о лайке.
 def format_like_notification(target_name, liker_profile_text, like_message=None):
     text = texts.TEMPLATE_LIKE_NOTIFICATION.format(
         target_name=target_name,
@@ -37,6 +40,7 @@ def format_like_notification(target_name, liker_profile_text, like_message=None)
     return text
 
 
+# Форматирует сообщение, которое отправляется при взаимном лайке.
 def format_match_message(profile_text, other_name, vk_link, like_message=None):
     text = texts.TEMPLATE_MATCH_MESSAGE.format(
         profile_text=profile_text,
@@ -53,6 +57,7 @@ def format_match_message(profile_text, other_name, vk_link, like_message=None):
     return text
 
 
+# Форматирует сообщение о жалобе для отправки в чат модерации.
 def format_report_message(profile_text, reporter_name, reporter_link, reported_name, reported_link, reason_text):
     return texts.TEMPLATE_REPORT_MESSAGE.format(
         profile_text=profile_text,
@@ -64,5 +69,6 @@ def format_report_message(profile_text, reporter_name, reporter_link, reported_n
     )
 
 
+# Форматирует короткое сообщение об успешном завершении действия.
 def format_done_message(name):
     return texts.TEMPLATE_DONE_MESSAGE.format(name=name)

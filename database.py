@@ -24,6 +24,7 @@ if DB_CA_PATH:
 connection = pymysql.connect(**connection_kwargs)
 
 
+# Добавляет недостающую колонку в существующую таблицу при обновлении runtime-схемы.
 def _add_column_if_missing(cursor, table_name, column_name, column_definition):
     cursor.execute(
         """
@@ -40,6 +41,7 @@ def _add_column_if_missing(cursor, table_name, column_name, column_definition):
         cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_definition}")
 
 
+# Проверяет, что служебные таблицы и runtime-поля профиля существуют в базе.
 def ensure_runtime_schema():
     with connection.cursor() as cursor:
         cursor.execute(
@@ -105,20 +107,23 @@ GAME_TITLES = {
 }
 
 
+# Преобразует VK user ID в формат хранения в базе данных.
 def _db_vk_user_id(vk_user_id):
     return str(vk_user_id)
 
 
+# Преобразует сохраненный VK user ID обратно в публичный вид.
 def _public_vk_user_id(vk_user_id):
     value = str(vk_user_id)
     return int(value) if value.isdigit() else value
 
 
+# Проверяет, относится ли указанный VK ID к внутреннему тестовому боту.
 def is_bot_vk_user_id(vk_user_id):
     return str(vk_user_id).startswith("бот-")
 
 
-# Создаёт пользователя в таблице users, если его там ещё нет.
+# Возвращает существующего пользователя или создает нового в таблице users.
 def get_or_create_user(vk_user_id):
     db_vk_user_id = _db_vk_user_id(vk_user_id)
     with connection.cursor() as cursor:
@@ -133,7 +138,7 @@ def get_or_create_user(vk_user_id):
         return {"id": cursor.lastrowid, "vk_user_id": _public_vk_user_id(db_vk_user_id)}
 
 
-# Ищет внутренний user_id по vk_user_id.
+# Ищет внутреннюю запись пользователя по его VK user ID.
 def get_user_row_by_vk_user_id(vk_user_id):
     db_vk_user_id = _db_vk_user_id(vk_user_id)
     with connection.cursor() as cursor:
@@ -144,7 +149,7 @@ def get_user_row_by_vk_user_id(vk_user_id):
         return row
 
 
-# Возвращает выбранные пользователем игры из связующей таблицы.
+# Загружает выбранные пользователем коды игр из связующей таблицы.
 def _load_game_codes(db_user_id):
     with connection.cursor() as cursor:
         cursor.execute(
@@ -160,7 +165,7 @@ def _load_game_codes(db_user_id):
         return [row["code"] for row in cursor.fetchall()]
 
 
-# Возвращает сохранённые фото пользователя в нужном порядке.
+# Загружает сохраненные photo token пользователя в порядке отображения.
 def _load_photos(db_user_id):
     with connection.cursor() as cursor:
         cursor.execute(
@@ -175,7 +180,7 @@ def _load_photos(db_user_id):
         return [row["photo_token"] for row in cursor.fetchall()]
 
 
-# Собирает единый профиль пользователя из нескольких таблиц.
+# Собирает полную структуру профиля из сырых полей базы данных.
 def _build_profile(base_row):
     if not base_row:
         return None
@@ -207,7 +212,7 @@ def _build_profile(base_row):
     return profile
 
 
-# Загружает полный профиль пользователя по его VK ID.
+# Загружает полный профиль по VK user ID вместе с играми и фотографиями.
 def get_profile_by_vk_user_id(vk_user_id):
     db_vk_user_id = _db_vk_user_id(vk_user_id)
     with connection.cursor() as cursor:
@@ -239,11 +244,13 @@ def get_profile_by_vk_user_id(vk_user_id):
         return _build_profile(cursor.fetchone())
 
 
+# Проверяет, заблокирован ли сейчас профиль данного VK-пользователя.
 def is_profile_banned(vk_user_id):
     profile = get_profile_by_vk_user_id(vk_user_id)
     return bool(profile and profile.get("is_banned"))
 
 
+# Очищает полученные дизлайки после важных изменений анкеты пользователя.
 def clear_received_dislikes(vk_user_id):
     user_row = get_user_row_by_vk_user_id(vk_user_id)
     if not user_row:
@@ -262,6 +269,7 @@ def clear_received_dislikes(vk_user_id):
     return deleted
 
 
+# Загружает ID пользователей, которых текущий пользователь уже лайкнул или дизлайкнул.
 def _load_interacted_target_ids(db_user_id):
     with connection.cursor() as cursor:
         cursor.execute(
@@ -276,6 +284,7 @@ def _load_interacted_target_ids(db_user_id):
         return {row["to_user_id"] for row in cursor.fetchall()}
 
 
+# Проверяет, есть ли у пользователя хотя бы один необработанный pending like.
 def has_pending_like_for_target(vk_user_id):
     user_row = get_user_row_by_vk_user_id(vk_user_id)
     if not user_row:
@@ -295,6 +304,7 @@ def has_pending_like_for_target(vk_user_id):
         return cursor.fetchone() is not None
 
 
+# Возвращает следующий профиль с pending like, ожидающий ответа пользователя.
 def get_next_pending_like_profile(vk_user_id):
     user_row = get_user_row_by_vk_user_id(vk_user_id)
     if not user_row:
@@ -328,6 +338,7 @@ def get_next_pending_like_profile(vk_user_id):
     return profile
 
 
+# Создает pending like, если лайк разрешен и такой записи еще нет.
 def enqueue_pending_like(liker_vk_user_id, target_vk_user_id, like_message=None):
     if is_profile_banned(liker_vk_user_id):
         return False
@@ -357,6 +368,7 @@ def enqueue_pending_like(liker_vk_user_id, target_vk_user_id, like_message=None)
     return inserted == 1 and pending_before == 0
 
 
+# Помечает pending like как уже показанный целевому пользователю.
 def mark_pending_like_notified(target_vk_user_id, liker_vk_user_id):
     target_user = get_user_row_by_vk_user_id(target_vk_user_id)
     liker_user = get_user_row_by_vk_user_id(liker_vk_user_id)
@@ -378,6 +390,7 @@ def mark_pending_like_notified(target_vk_user_id, liker_vk_user_id):
     return updated > 0
 
 
+# Сохраняет ответ целевого пользователя на pending like.
 def resolve_pending_like(target_vk_user_id, liker_vk_user_id, response_action):
     if response_action not in ("like", "dislike"):
         raise ValueError("Unsupported response action")
@@ -404,7 +417,7 @@ def resolve_pending_like(target_vk_user_id, liker_vk_user_id, response_action):
     return updated > 0
 
 
-# Сохраняет простые поля анкеты в profiles.
+# Сохраняет простые поля анкеты в profiles и отслеживает значимые изменения.
 def save_profile_fields(vk_user_id, fields):
     if not fields:
         return False
@@ -443,6 +456,7 @@ def save_profile_fields(vk_user_id, fields):
     return True
 
 
+# Помечает профиль как недоступный для доставки сообщений после ошибки VK.
 def mark_profile_delivery_unavailable(vk_user_id, error_code=None):
     user_row = get_or_create_user(vk_user_id)
     with connection.cursor() as cursor:
@@ -461,6 +475,7 @@ def mark_profile_delivery_unavailable(vk_user_id, error_code=None):
     return True
 
 
+# Сбрасывает флаги ошибок доставки, когда пользователь снова становится доступен.
 def reset_profile_delivery_status(vk_user_id):
     user_row = get_user_row_by_vk_user_id(vk_user_id)
     if not user_row:
@@ -482,6 +497,7 @@ def reset_profile_delivery_status(vk_user_id):
     return updated > 0
 
 
+# Загружает сохраненное runtime-состояние сессии пользователя из базы данных.
 def load_runtime_state(vk_user_id):
     user_row = get_user_row_by_vk_user_id(vk_user_id)
     if not user_row:
@@ -507,6 +523,7 @@ def load_runtime_state(vk_user_id):
         return {}
 
 
+# Сохраняет или очищает runtime-состояние сессии пользователя в базе.
 def save_runtime_state(vk_user_id, state):
     user_row = get_or_create_user(vk_user_id)
 
@@ -529,6 +546,7 @@ def save_runtime_state(vk_user_id, state):
     return True
 
 
+# Удаляет пользователя и все связанные данные через каскадные внешние ключи.
 def delete_user_data(vk_user_id):
     user_row = get_user_row_by_vk_user_id(vk_user_id)
     if not user_row:
@@ -540,6 +558,7 @@ def delete_user_data(vk_user_id):
     return True
 
 
+# Возвращает предыдущий лайкнутый или дизлайкнутый профиль из истории взаимодействий.
 def get_previous_interaction(vk_user_id, before_created_at=None, before_id=None):
     user_row = get_user_row_by_vk_user_id(vk_user_id)
     if not user_row:
@@ -587,7 +606,7 @@ def get_previous_interaction(vk_user_id, before_created_at=None, before_id=None)
     }
 
 
-# Полностью пересохраняет список игр пользователя.
+# Полностью заменяет выбранные пользователем игры и помечает шаг игр как завершенный.
 def save_games(vk_user_id, selected_game_codes):
     user_row = get_or_create_user(vk_user_id)
     db_user_id = user_row["id"]
@@ -627,7 +646,7 @@ def save_games(vk_user_id, selected_game_codes):
     return True
 
 
-# Полностью пересохраняет до трёх фото пользователя.
+# Полностью заменяет сохраненные фото пользователя, оставляя только первые три.
 def save_photos(vk_user_id, photos):
     user_row = get_or_create_user(vk_user_id)
     db_user_id = user_row["id"]
@@ -649,7 +668,7 @@ def save_photos(vk_user_id, photos):
     return True
 
 
-# Ищет следующую подходящую анкету для показа пользователю.
+# Подбирает следующую анкету для просмотра по правилам матчинга бота.
 def get_random_candidate(vk_user_id):
     current_profile = get_profile_by_vk_user_id(vk_user_id)
     if not current_profile:

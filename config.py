@@ -8,6 +8,7 @@ SECRETS_DIR = BASE_DIR / "secrets"
 SECRETS_DIR.mkdir(exist_ok=True)
 
 
+# Читает текстовый секрет из файла и возвращает None, если файла нет.
 def _read_secret_file(path):
     secret_path = Path(path)
     if not secret_path.exists():
@@ -15,10 +16,12 @@ def _read_secret_file(path):
     return secret_path.read_text(encoding="utf-8").strip() or None
 
 
+# Возвращает значение из env, затем из файла, затем использует значение по умолчанию.
 def _env_or_file(env_name, file_path, default=None):
     return os.getenv(env_name) or _read_secret_file(file_path) or default
 
 
+# Загружает JSON-файл с секретом в словарь или возвращает пустой словарь.
 def _load_json_secret(path):
     secret_path = Path(path)
     if not secret_path.exists():
@@ -26,6 +29,7 @@ def _load_json_secret(path):
     return json.loads(secret_path.read_text(encoding="utf-8"))
 
 
+# Собирает конфиг базы данных из env, файла с секретом и значений по умолчанию.
 def _build_db_config(file_name, defaults=None):
     defaults = defaults or {}
     file_values = _load_json_secret(SECRETS_DIR / file_name)

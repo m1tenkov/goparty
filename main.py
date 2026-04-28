@@ -17,6 +17,7 @@ print(texts.MSG_CONSOLE_STARTED)
 bot_logger.info("Bot started")
 
 
+# Передает VK-событие в нужный обработчик и логирует детали обработки.
 def process_event(event):
     started_at = time.perf_counter()
     event_name = str(event.type)

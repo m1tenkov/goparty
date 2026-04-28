@@ -50,6 +50,7 @@ from .keyboards import (
     get_review_keyboard,
 )
 
+# Преобразует payload VK в словарь независимо от исходного формата.
 def parse_payload(payload):
     if not payload:
         return {}
@@ -63,12 +64,14 @@ def parse_payload(payload):
     return {}
 
 
+# Безопасно читает значение из словаря или атрибута объекта.
 def event_value(obj, key, default=None):
     if isinstance(obj, dict):
         return obj.get(key, default)
     return getattr(obj, key, default)
 
 
+# Вычисляет возраст по дате рождения VK, если в ней указан год.
 def _calculate_age_from_bdate(bdate):
     if not bdate:
         return None
@@ -91,6 +94,7 @@ def _calculate_age_from_bdate(bdate):
     return None
 
 
+# Запрашивает открытые данные VK-профиля для автозаполнения анкеты.
 def fetch_vk_profile(vk, user_id):
     try:
         user_info = vk.users.get(user_ids=user_id, fields="bdate,city,sex")[0]
@@ -116,6 +120,7 @@ def fetch_vk_profile(vk, user_id):
     return profile
 
 
+# Собирает базовую in-memory структуру пользователя из данных базы.
 def base_runtime_user(vk_user_id):
     profile = get_profile_by_vk_user_id(vk_user_id) or {}
     runtime = {
@@ -154,6 +159,7 @@ def base_runtime_user(vk_user_id):
     return runtime
 
 
+# Восстанавливает или создает runtime-состояние пользователя из БД, памяти и данных VK.
 def ensure_runtime_user(vk, vk_user_id):
     get_or_create_user(vk_user_id)
     runtime = base_runtime_user(vk_user_id)
@@ -182,10 +188,12 @@ def ensure_runtime_user(vk, vk_user_id):
     return runtime
 
 
+# Обновляет runtime-объект пользователя из актуального сохраненного состояния.
 def sync_profile_from_db(vk, vk_user_id):
     return ensure_runtime_user(vk, vk_user_id)
 
 
+# Сохраняет важные runtime-поля пользователя в таблицу сессий.
 def persist_runtime_user(vk_user_id):
     user = users.get(vk_user_id)
     if not user:
@@ -214,14 +222,17 @@ def persist_runtime_user(vk_user_id):
     )
 
 
+# Возвращает список кодов игр, которые сейчас выбраны в runtime-состоянии.
 def selected_games(user):
     return [code for code in GAME_CODES if user.get(code)]
 
 
+# Проверяет, что у пользователя нет выбранных игр и нужен fallback-маркер отсутствия игр.
 def has_no_games_marker(user):
     return not selected_games(user)
 
 
+# Возвращает список игр в виде, в котором он показывается в анкете.
 def games_display(user):
     games = [GAME_TITLES[code] for code in selected_games(user)]
     if not games and has_no_games_marker(user):
@@ -229,6 +240,7 @@ def games_display(user):
     return games
 
 
+# Обрезает текст сообщения под лимиты VK, не ломая отображение.
 def fit_message_text(text, limit=VK_MESSAGE_MAX_LENGTH):
     text = str(text or "")
     if len(text) <= limit:
@@ -236,16 +248,19 @@ def fit_message_text(text, limit=VK_MESSAGE_MAX_LENGTH):
     return text[: limit - 3].rstrip() + "..."
 
 
+# Форматирует текущий набор игр в короткое итоговое сообщение.
 def format_games_summary(user):
     games = games_display(user)
     games_text = ", ".join(games) if games else NO_GAMES_TEXT
     return build_games_summary_text(games_text)
 
 
+# Возвращает стандартный текст-подсказку для шага выбора игр.
 def format_games_picker_prompt():
     return texts.MSG_GAMES_PICKER
 
 
+# Формирует подсказку после загрузки меньше трех фотографий.
 def format_photo_more_prompt(current_count):
     remaining = max(0, 3 - int(current_count))
     if remaining <= 0:
@@ -255,6 +270,7 @@ def format_photo_more_prompt(current_count):
     return texts.MSG_ADD_ONE_TWO_PHOTOS
 
 
+# Форматирует runtime-профиль пользователя или кандидата в читаемый текст.
 def format_profile(user, include_review=False):
     name = user.get("name") or texts.LABEL_NO_NAME
     age = user.get("age") or "?"
@@ -264,6 +280,7 @@ def format_profile(user, include_review=False):
     return fit_message_text(format_profile_text(name, age, city, games_text, about, include_review=include_review))
 
 
+# Извлекает VK photo token из вложений и отмечает наличие других типов вложений.
 def extract_photo_payload(attachments):
     if not attachments:
         return [], False
@@ -307,11 +324,13 @@ def extract_photo_payload(attachments):
     return photos, has_other_content
 
 
+# Возвращает только photo token из общего payload вложений.
 def extract_photo_attachments(attachments):
     photos, _ = extract_photo_payload(attachments)
     return photos or None
 
 
+# Загружает photo-вложения напрямую из сообщения VK по его message ID.
 def extract_photo_attachments_from_message(vk, message_id):
     if not message_id:
         return [], False
@@ -325,6 +344,7 @@ def extract_photo_attachments_from_message(vk, message_id):
     return extract_photo_payload(items[0].get("attachments") or [])
 
 
+# Преобразует сохраненные photo token в строку attachment для VK.
 def build_photo_attachment(profile):
     photos = []
     for photo in profile.get("photos", []):
@@ -337,25 +357,30 @@ def build_photo_attachment(profile):
     return ",".join(photos) or None
 
 
+# Сохраняет одно простое поле анкеты и в памяти, и в базе данных.
 def save_text_field(user, field, value):
     user[field] = value
     save_profile_fields(user["vk_user_id"], {field: value})
 
 
+# Сохраняет текущий выбранный набор игр из runtime-состояния в базу.
 def save_games_state(user):
     user["games"] = selected_games(user)
     save_games(user["vk_user_id"], user["games"])
 
 
+# Сохраняет текущий набор фотографий из runtime-состояния в базу.
 def save_photos_state(user, photos):
     user["photos"] = list(photos[:3])
     save_photos(user["vk_user_id"], user["photos"])
 
 
+# Отправляет inline-клавиатуру для выбора игр.
 def show_games_picker(user, send):
     send(format_games_picker_prompt(), keyboard=get_games_keyboard(user))
 
 
+# Запускает шаг выбора игр и при необходимости скрывает предыдущую reply-клавиатуру.
 def start_games_flow(user, send, clear_reply_keyboard=False):
     user["step"] = STATE_GAMES
     if clear_reply_keyboard:
@@ -364,11 +389,13 @@ def start_games_flow(user, send, clear_reply_keyboard=False):
     show_games_picker(user, send)
 
 
+# Повторно активирует ранее отключенную анкету при возвращении к просмотру.
 def reactivate_profile_if_needed(user):
     if user.get("is_active") == 0:
         save_text_field(user, "is_active", 1)
 
 
+# Проверяет, заполнены ли все обязательные поля анкеты.
 def is_profile_complete(user):
     return all(
         [
@@ -384,6 +411,7 @@ def is_profile_complete(user):
     )
 
 
+# Отправляет следующий обязательный шаг регистрации для незаполненной анкеты.
 def ask_next_required_field(user, send):
     if not user.get("name"):
         user["step"] = STATE_REG_NAME
@@ -419,6 +447,7 @@ def ask_next_required_field(user, send):
     return False
 
 
+# Показывает пользователю его заполненную анкету с клавиатурой обзора.
 def show_review(user, send):
     user["step"] = STATE_REVIEW
     user["browse_mode"] = "new"
@@ -432,6 +461,7 @@ def show_review(user, send):
     )
 
 
+# Формирует текст кандидата для режима просмотра и истории.
 def _candidate_browse_text(candidate, viewing_history=False, history_action=None):
     text = format_profile(candidate, include_review=False)
     if viewing_history and history_action == "like":
@@ -439,6 +469,7 @@ def _candidate_browse_text(candidate, viewing_history=False, history_action=None
     return text
 
 
+# Показывает следующую новую анкету, подходящую текущему пользователю.
 def show_next_candidate(vk_user_id, send):
     user = users[vk_user_id]
     reactivate_profile_if_needed(user)
@@ -461,6 +492,7 @@ def show_next_candidate(vk_user_id, send):
     )
 
 
+# Повторно показывает текущую анкету в просмотре или подгружает следующую при необходимости.
 def show_current_or_next_candidate(vk_user_id, send):
     user = users[vk_user_id]
     reactivate_profile_if_needed(user)
@@ -496,6 +528,7 @@ def show_current_or_next_candidate(vk_user_id, send):
     )
 
 
+# Открывает предыдущее взаимодействие из режима истории.
 def show_previous_candidate(vk_user_id, send):
     user = users[vk_user_id]
     if user.get("browse_mode") == "history" and user.get("history_cursor_id") == 0:
@@ -535,14 +568,17 @@ def show_previous_candidate(vk_user_id, send):
     )
 
 
+# Возвращает следующий профиль с входящим pending like для пользователя.
 def get_pending_like_profile(vk_user_id):
     return get_next_pending_like_profile(vk_user_id)
 
 
+# Проверяет, есть ли у пользователя сейчас необработанные входящие лайки.
 def has_pending_likes(vk_user_id):
     return has_pending_like_for_target(vk_user_id)
 
 
+# Заполняет пустые поля анкеты данными, полученными из VK-профиля.
 def apply_vk_defaults(vk_user_id, user):
     vk_profile = user.get("vk_profile") or {}
     updates = {}

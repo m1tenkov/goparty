@@ -7,7 +7,7 @@ vk_session = vk_api.VkApi(token=TOKEN)
 vk = vk_session.get_api()
 
 
-# Создает новый экземпляр Long Poll для переподключения после сбоев.
+# Создает новый клиент Long Poll для первого запуска или переподключения.
 def create_longpoll():
     return VkBotLongPoll(vk_session, GROUP_ID)
 

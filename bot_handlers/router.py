@@ -107,11 +107,13 @@ from .utils import (
 )
 
 
+# Укорачивает текст сообщения перед записью в логи.
 def _preview_text(text, limit=300):
     text = (text or "").strip()
     return text[:limit]
 
 
+# Удаляет невидимые управляющие символы из текста, который показывается пользователю.
 def _clean_visible_text(text):
     text = str(text or "")
     cleaned = []
@@ -123,6 +125,7 @@ def _clean_visible_text(text):
     return "".join(cleaned).strip()
 
 
+# Защищает от случайной двойной обработки одного и того же действия пользователя.
 def is_duplicate_action(user, action_key, window_seconds=ACTION_DEBOUNCE_SECONDS):
     now = time.monotonic()
     last_key = user.get("_last_action_key")
@@ -144,6 +147,7 @@ def is_duplicate_action(user, action_key, window_seconds=ACTION_DEBOUNCE_SECONDS
 DELIVERY_UNAVAILABLE_ERROR_CODES = {"18", "900", "901"}
 
 
+# Извлекает код ошибки VK API из исключения или его текстового представления.
 def _extract_vk_error_code(error):
     code = getattr(error, "code", None)
     if code is not None:
@@ -155,6 +159,7 @@ def _extract_vk_error_code(error):
     return None
 
 
+# Определяет, означает ли ошибка отправки VK, что пользователю нельзя доставить сообщение.
 def _is_delivery_unavailable_error(error):
     code = _extract_vk_error_code(error)
     if code in DELIVERY_UNAVAILABLE_ERROR_CODES:
@@ -170,6 +175,7 @@ def _is_delivery_unavailable_error(error):
     return any(marker in text for marker in markers)
 
 
+# Безопасно отправляет сообщение VK и при необходимости помечает профиль как недоступный для доставки.
 def safe_vk_send(vk, **kwargs):
     try:
         vk.messages.send(**kwargs)
@@ -189,6 +195,7 @@ def safe_vk_send(vk, **kwargs):
         return False
 
 
+# Безопасно редактирует сообщение VK и логирует любые ошибки.
 def safe_vk_edit(vk, **kwargs):
     try:
         vk.messages.edit(**kwargs)
@@ -202,6 +209,7 @@ def safe_vk_edit(vk, **kwargs):
         return False
 
 
+# Безопасно отвечает на callback-событие VK, чтобы клиент перестал ждать.
 def safe_vk_answer_event(vk, **kwargs):
     try:
         vk.messages.sendMessageEventAnswer(**kwargs)
@@ -215,6 +223,7 @@ def safe_vk_answer_event(vk, **kwargs):
         )
         return False
 
+# Переводит пользователя в состояние входящего лайка с указанным профилем лайкнувшего.
 def activate_incoming_like(user, liker_profile, preserve_step=True):
     if not liker_profile:
         return False
@@ -226,6 +235,7 @@ def activate_incoming_like(user, liker_profile, preserve_step=True):
     return True
 
 
+# Показывает экран входящего лайка для конкретного профиля.
 def show_pending_like(user, liker_profile, send, preserve_step=True):
     if not activate_incoming_like(user, liker_profile, preserve_step=preserve_step):
         return False
@@ -233,6 +243,7 @@ def show_pending_like(user, liker_profile, send, preserve_step=True):
     return True
 
 
+# Загружает и показывает следующий необработанный входящий лайк, если он есть.
 def show_next_pending_like_if_any(user, send):
     next_profile = get_pending_like_profile(user["vk_user_id"])
     if next_profile:
@@ -240,6 +251,7 @@ def show_next_pending_like_if_any(user, send):
     return False
 
 
+# Возвращает пользователя в предыдущий сценарий после завершения обработки входящего лайка.
 def resume_after_incoming_like(user, send):
     user["pending_like_profile"] = None
     previous_step = user.get("resume_step")
@@ -258,6 +270,7 @@ def resume_after_incoming_like(user, send):
     return
 
 
+# Возвращает профиль, который сейчас актуален для лайка, жалобы или сообщения.
 def get_active_profile_for_feedback(user):
     if user.get("step") == STATE_INCOMING_LIKE and user.get("pending_like_profile"):
         return user.get("pending_like_profile")
@@ -268,6 +281,7 @@ def get_active_profile_for_feedback(user):
     return get_profile_by_vk_user_id(candidate_vk_user_id)
 
 
+# Запускает сценарий, в котором пользователь может добавить сообщение к лайку.
 def start_like_message_flow(user, send):
     target_profile = get_active_profile_for_feedback(user)
     if not target_profile:
@@ -280,6 +294,7 @@ def start_like_message_flow(user, send):
     send(texts.MSG_SEND_MESSAGE_PROMPT, keyboard=get_like_message_keyboard())
 
 
+# Возвращает пользователя из сценария лайка с сообщением обратно в предыдущий сценарий.
 def resume_after_like_message(user, send):
     previous_step = user.get("like_message_resume_step")
     user["like_message_resume_step"] = None
@@ -294,6 +309,7 @@ def resume_after_like_message(user, send):
     show_review(user, send)
 
 
+# Отправляет пользователю уведомление о лайке с превью профиля лайкнувшего.
 def send_like_notification(vk, target_vk_user_id, liker_profile):
     if is_bot_vk_user_id(target_vk_user_id):
         return
@@ -318,6 +334,7 @@ def send_like_notification(vk, target_vk_user_id, liker_profile):
         mark_pending_like_notified(target_vk_user_id, liker_profile["vk_user_id"])
 
 
+# Отправляет уведомление о взаимном мэтче одной из сторон.
 def send_match_notification(vk, recipient_vk_user_id, other_profile, like_message=None):
     if is_bot_vk_user_id(recipient_vk_user_id):
         return
@@ -340,6 +357,7 @@ def send_match_notification(vk, recipient_vk_user_id, other_profile, like_messag
     )
 
 
+# Повторно показывает текущую подсказку о входящем лайке.
 def repeat_incoming_like_prompt(user, send):
     liker_profile = user.get("pending_like_profile") or {}
     target_name = user.get("name") or texts.LABEL_MY_PROFILE_FALLBACK
@@ -355,6 +373,7 @@ def repeat_incoming_like_prompt(user, send):
     )
 
 
+# Отправляет готовую жалобу на анкету в чат модерации.
 def send_report_to_moderation(vk, reporter_user, candidate_profile, reason_text):
     report_chat_peer_id = 2000000001
     reporter_name = reporter_user.get("name") or f"VK {reporter_user['vk_user_id']}"
@@ -380,6 +399,7 @@ def send_report_to_moderation(vk, reporter_user, candidate_profile, reason_text)
     )
 
 
+# Запускает сценарий жалобы для текущего активного профиля.
 def start_report_flow(user, send):
     target_profile = get_active_profile_for_feedback(user)
     if not target_profile:
@@ -391,6 +411,7 @@ def start_report_flow(user, send):
     send(texts.MSG_REPORT_REASON_PROMPT, keyboard=get_report_cancel_keyboard())
 
 
+# Обрабатывает текст причины, который пользователь ввел в сценарии жалобы.
 def handle_report_reason(vk, user, raw_text, attachments, send):
     normalized_text = raw_text.strip().lower()
     if normalized_text == texts.BUTTON_CANCEL_REPORT.lower():
@@ -435,6 +456,7 @@ def handle_report_reason(vk, user, raw_text, attachments, send):
     show_next_candidate(user["vk_user_id"], send)
 
 
+# Обрабатывает текст пользователя, когда он отправляет лайк вместе с сообщением.
 def handle_like_message_input(vk, user, raw_text, attachments, send):
     normalized_text = raw_text.strip().lower()
     if normalized_text == texts.BUTTON_BACK_FROM_MESSAGE.lower():
@@ -509,6 +531,7 @@ def handle_like_message_input(vk, user, raw_text, attachments, send):
     resume_after_like_message(user, send)
 
 
+# Обрабатывает ответ пользователя на входящий лайк.
 def handle_incoming_like(vk, user, normalized_text, send):
     liker_profile = user.get("pending_like_profile")
     if not liker_profile:
@@ -561,6 +584,7 @@ def handle_incoming_like(vk, user, normalized_text, send):
 
     repeat_incoming_like_prompt(user, send)
 
+# Инициализирует или восстанавливает сценарий пользователя при начале диалога с ботом.
 def start_bot_flow(vk, vk_user_id, send):
     existed_before = get_profile_by_vk_user_id(vk_user_id) is not None
     user = ensure_runtime_user(vk, vk_user_id)
@@ -582,6 +606,7 @@ def start_bot_flow(vk, vk_user_id, send):
     show_review(user, send)
 
 
+# Отправляет в VK подтверждение callback-события.
 def answer_event(vk, event):
     obj = event.object
     safe_vk_answer_event(
@@ -592,6 +617,7 @@ def answer_event(vk, event):
     )
 
 
+# Обновляет текст inline-сообщения и клавиатуру после callback-действия.
 def edit_event_message(vk, event, text, keyboard):
     obj = event.object
     safe_vk_edit(
@@ -603,6 +629,7 @@ def edit_event_message(vk, event, text, keyboard):
     )
 
 
+# Обрабатывает callback-события VK, в основном для inline-выбора игр.
 def handle_message_event(vk, event):
     payload = parse_payload(event_value(event.object, "payload"))
     vk_user_id = event_value(event.object, "user_id")
@@ -669,6 +696,7 @@ def handle_message_event(vk, event):
         )
 
 
+# Проверяет и сохраняет имя пользователя при регистрации или редактировании.
 def handle_reg_name(user, raw_text, normalized_text, send):
     vk_name = (user.get("vk_profile") or {}).get("name")
     if normalized_text == texts.BUTTON_KEEP_CURRENT.lower():
@@ -692,6 +720,7 @@ def handle_reg_name(user, raw_text, normalized_text, send):
     show_review(user, send)
 
 
+# Проверяет и сохраняет возраст пользователя при регистрации или редактировании.
 def handle_reg_age(user, normalized_text, send):
     vk_age = (user.get("vk_profile") or {}).get("age")
     if vk_age and normalized_text == str(vk_age):
@@ -713,6 +742,7 @@ def handle_reg_age(user, normalized_text, send):
     show_review(user, send)
 
 
+# Проверяет и сохраняет пол пользователя при регистрации или редактировании.
 def handle_reg_gender(user, normalized_text, send):
     vk_gender = (user.get("vk_profile") or {}).get("gender")
     if normalized_text == texts.BUTTON_KEEP_CURRENT.lower():
@@ -732,6 +762,7 @@ def handle_reg_gender(user, normalized_text, send):
     show_review(user, send)
 
 
+# Проверяет и сохраняет город пользователя при регистрации или редактировании.
 def handle_reg_city(user, raw_text, normalized_text, send):
     vk_city = (user.get("vk_profile") or {}).get("city")
     if normalized_text == texts.BUTTON_KEEP_CURRENT.lower():
@@ -755,6 +786,7 @@ def handle_reg_city(user, raw_text, normalized_text, send):
     show_review(user, send)
 
 
+# Проверяет и сохраняет предпочтения пользователя при регистрации или редактировании.
 def handle_reg_looking(user, normalized_text, send):
     if normalized_text == texts.BUTTON_KEEP_CURRENT.lower():
         show_review(user, send)
@@ -773,6 +805,7 @@ def handle_reg_looking(user, normalized_text, send):
     show_review(user, send)
 
 
+# Проверяет и сохраняет текстовое описание «о себе» в анкете.
 def handle_about(user, raw_text, attachments, send):
     has_existing_about = bool(_clean_visible_text(user.get("about")))
     invalid_about_keyboard = get_keep_current_keyboard() if has_existing_about else EMPTY_KEYBOARD
@@ -793,6 +826,7 @@ def handle_about(user, raw_text, attachments, send):
     show_review(user, send)
 
 
+# Обрабатывает загруженные фото и управляет шагом фотографий в анкете.
 def handle_photos(vk, user, raw_text, attachments, message_id, send):
     current_photos = [] if user.get("step") == STATE_PHOTO else list(user.get("photos", []))
 
@@ -846,6 +880,7 @@ def handle_photos(vk, user, raw_text, attachments, message_id, send):
     show_review(user, send)
 
 
+# Обрабатывает действие «завершить добавление фото» после первых загрузок.
 def handle_photo_more(user, normalized_text, send):
     if normalized_text == texts.BUTTON_PHOTO_DONE.lower():
         show_review(user, send)
@@ -853,6 +888,7 @@ def handle_photo_more(user, normalized_text, send):
     send(format_photo_more_prompt(len(user.get("photos", []))), keyboard=get_photo_more_keyboard())
 
 
+# Обрабатывает нажатия кнопок на экране обзора анкеты.
 def handle_review(user, normalized_text, send):
     if normalized_text == texts.BUTTON_REVIEW_BROWSE.lower():
         if is_duplicate_action(user, "review:browse"):
@@ -889,6 +925,7 @@ def handle_review(user, normalized_text, send):
         return
     send(texts.MSG_REVIEW_FALLBACK, keyboard=get_review_keyboard())
 
+# Обрабатывает нажатия кнопок в меню редактирования.
 def handle_edit_menu(user, normalized_text, send):
     vk_profile = user.get("vk_profile") or {}
     if normalized_text == texts.BUTTON_EDIT_NAME.lower():
@@ -921,6 +958,7 @@ def handle_edit_menu(user, normalized_text, send):
 
 
 
+# Обрабатывает действия пользователя во время просмотра чужих анкет.
 def handle_browse(vk, user, normalized_text, send):
     vk_user_id = user["vk_user_id"]
     if normalized_text == texts.BUTTON_MY_PROFILE.lower():
@@ -1064,6 +1102,7 @@ def handle_browse(vk, user, normalized_text, send):
     )
 
 
+# Обрабатывает подтверждение или отмену отключения анкеты.
 def handle_deactivate_confirm(user, normalized_text, send):
     if normalized_text == texts.BUTTON_BACK.lower():
         show_review(user, send)
@@ -1078,6 +1117,7 @@ def handle_deactivate_confirm(user, normalized_text, send):
     send(texts.MSG_DEACTIVATE_CONFIRM, keyboard=get_deactivate_confirm_keyboard())
 
 
+# Обрабатывает подтверждение или отмену полного сброса анкеты.
 def handle_reset_confirm(vk, user, normalized_text, send):
     if normalized_text == texts.BUTTON_BACK.lower():
         show_review(user, send)
@@ -1094,6 +1134,7 @@ def handle_reset_confirm(vk, user, normalized_text, send):
         keyboard=get_reset_confirm_keyboard(),
     )
 
+# Главный обработчик входящего сообщения VK, который маршрутизирует его по текущему состоянию.
 def handle_message(vk, vk_user_id, text, attachments, message_id=None, payload=None):
     before_user = users.get(vk_user_id, {})
     log_action(

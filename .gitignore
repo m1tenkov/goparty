@@ -4,6 +4,7 @@ __pycache__/
 *.bak
 
 logs/
+docs/
 secrets/*.txt
 secrets/*.json
 secrets/*.pem

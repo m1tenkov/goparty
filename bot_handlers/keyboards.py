@@ -6,12 +6,14 @@ from . import texts
 EMPTY_KEYBOARD = VkKeyboard.get_empty_keyboard()
 
 
+# Создает стартовую клавиатуру с одной кнопкой запуска.
 def get_start_keyboard():
     keyboard = VkKeyboard(one_time=True, inline=False)
     keyboard.add_button(texts.BUTTON_START, color=VkKeyboardColor.POSITIVE)
     return keyboard.get_keyboard()
 
 
+# Создает клавиатуру выбора пола для регистрации.
 def get_gender_keyboard():
     keyboard = VkKeyboard(one_time=False, inline=False)
     keyboard.add_button(texts.BUTTON_GENDER_MALE, color=VkKeyboardColor.PRIMARY)
@@ -19,6 +21,7 @@ def get_gender_keyboard():
     return keyboard.get_keyboard()
 
 
+# Создает клавиатуру выбора предпочтений для регистрации и редактирования.
 def get_looking_keyboard():
     keyboard = VkKeyboard(one_time=True, inline=False)
     keyboard.add_button(texts.BUTTON_LOOKING_MALE, color=VkKeyboardColor.PRIMARY)
@@ -27,18 +30,21 @@ def get_looking_keyboard():
     return keyboard.get_keyboard()
 
 
+# Создает клавиатуру, которая показывается, когда пользователь может добавить еще фото.
 def get_photo_more_keyboard():
     keyboard = VkKeyboard(one_time=False, inline=False)
     keyboard.add_button(texts.BUTTON_PHOTO_DONE, color=VkKeyboardColor.POSITIVE)
     return keyboard.get_keyboard()
 
 
+# Создает клавиатуру для сохранения текущих фото при редактировании.
 def get_photo_edit_keyboard():
     keyboard = VkKeyboard(one_time=False, inline=False)
     keyboard.add_button(texts.BUTTON_KEEP_CURRENT, color=VkKeyboardColor.SECONDARY)
     return keyboard.get_keyboard()
 
 
+# Создает основную клавиатуру обзора для заполненной анкеты.
 def get_review_keyboard():
     keyboard = VkKeyboard(one_time=False, inline=False)
     keyboard.add_button(texts.BUTTON_REVIEW_BROWSE, color=VkKeyboardColor.POSITIVE)
@@ -55,6 +61,7 @@ def get_review_keyboard():
     return keyboard.get_keyboard()
 
 
+# Создает меню-клавиатуру для редактирования основных полей анкеты.
 def get_edit_profile_keyboard():
     keyboard = VkKeyboard(one_time=False, inline=False)
     keyboard.add_button(texts.BUTTON_EDIT_NAME, color=VkKeyboardColor.PRIMARY)
@@ -68,6 +75,7 @@ def get_edit_profile_keyboard():
     return keyboard.get_keyboard()
 
 
+# Создает клавиатуру редактирования имени с быстрым выбором имени из VK, если оно доступно.
 def get_name_edit_keyboard(vk_name):
     keyboard = VkKeyboard(one_time=False, inline=False)
     if vk_name:
@@ -77,6 +85,7 @@ def get_name_edit_keyboard(vk_name):
     return keyboard.get_keyboard()
 
 
+# Создает клавиатуру редактирования возраста с быстрым выбором текущего возраста.
 def get_age_edit_keyboard(current_age):
     keyboard = VkKeyboard(one_time=False, inline=False)
     if current_age:
@@ -86,6 +95,7 @@ def get_age_edit_keyboard(current_age):
     return keyboard.get_keyboard()
 
 
+# Создает клавиатуру регистрации возраста с подсказкой возраста из VK, если он доступен.
 def get_age_registration_keyboard(vk_age):
     keyboard = VkKeyboard(one_time=False, inline=False)
     if vk_age:
@@ -94,6 +104,7 @@ def get_age_registration_keyboard(vk_age):
     return EMPTY_KEYBOARD
 
 
+# Создает клавиатуру редактирования пола.
 def get_gender_edit_keyboard(vk_gender):
     keyboard = VkKeyboard(one_time=False, inline=False)
     keyboard.add_button(texts.BUTTON_GENDER_MALE, color=VkKeyboardColor.PRIMARY)
@@ -101,6 +112,7 @@ def get_gender_edit_keyboard(vk_gender):
     return keyboard.get_keyboard()
 
 
+# Создает клавиатуру редактирования города с быстрым выбором города из VK, если он доступен.
 def get_city_edit_keyboard(vk_city):
     keyboard = VkKeyboard(one_time=False, inline=False)
     if vk_city:
@@ -110,6 +122,7 @@ def get_city_edit_keyboard(vk_city):
     return keyboard.get_keyboard()
 
 
+# Создает inline callback-клавиатуру для выбора игр.
 def get_games_keyboard(user):
     keyboard = VkKeyboard(one_time=False, inline=True)
     keyboard.add_callback_button(
@@ -162,12 +175,14 @@ def get_games_keyboard(user):
     return keyboard.get_keyboard()
 
 
+# Создает клавиатуру с универсальной кнопкой «оставить как есть».
 def get_keep_current_keyboard():
     keyboard = VkKeyboard(one_time=False, inline=False)
     keyboard.add_button(texts.BUTTON_KEEP_CURRENT, color=VkKeyboardColor.SECONDARY)
     return keyboard.get_keyboard()
 
 
+# Создает клавиатуру для просмотра новых анкет или истории.
 def get_browse_keyboard(viewing_history=False, history_action=None):
     keyboard = VkKeyboard(one_time=False, inline=False)
     if not viewing_history or history_action == "dislike":
@@ -185,6 +200,7 @@ def get_browse_keyboard(viewing_history=False, history_action=None):
     return keyboard.get_keyboard()
 
 
+# Создает запасную клавиатуру для случая, когда нет анкет для показа.
 def get_no_profiles_keyboard():
     keyboard = VkKeyboard(one_time=False, inline=False)
     keyboard.add_button(texts.BUTTON_BACK_TO_PREVIOUS, color=VkKeyboardColor.SECONDARY)
@@ -194,6 +210,7 @@ def get_no_profiles_keyboard():
     return keyboard.get_keyboard()
 
 
+# Создает клавиатуру ответа на входящий лайк.
 def get_incoming_like_keyboard():
     keyboard = VkKeyboard(one_time=False, inline=False)
     keyboard.add_button(texts.EMOJI_LIKE, color=VkKeyboardColor.POSITIVE)
@@ -204,18 +221,21 @@ def get_incoming_like_keyboard():
     return keyboard.get_keyboard()
 
 
+# Создает клавиатуру, используемую во время ввода причины жалобы.
 def get_report_cancel_keyboard():
     keyboard = VkKeyboard(one_time=False, inline=False)
     keyboard.add_button(texts.BUTTON_CANCEL_REPORT, color=VkKeyboardColor.SECONDARY)
     return keyboard.get_keyboard()
 
 
+# Создает клавиатуру для сценария «лайк с сообщением».
 def get_like_message_keyboard():
     keyboard = VkKeyboard(one_time=False, inline=False)
     keyboard.add_button(texts.BUTTON_BACK_FROM_MESSAGE, color=VkKeyboardColor.SECONDARY)
     return keyboard.get_keyboard()
 
 
+# Создает простую клавиатуру, которая показывается после мэтчей и завершенных действий.
 def get_matches_keyboard():
     keyboard = VkKeyboard(one_time=False, inline=False)
     keyboard.add_button(texts.BUTTON_MY_PROFILE, color=VkKeyboardColor.PRIMARY)
@@ -223,6 +243,7 @@ def get_matches_keyboard():
     return keyboard.get_keyboard()
 
 
+# Создает клавиатуру подтверждения отключения анкеты.
 def get_deactivate_confirm_keyboard():
     keyboard = VkKeyboard(one_time=False, inline=False)
     keyboard.add_button(texts.BUTTON_DEACTIVATE, color=VkKeyboardColor.NEGATIVE)
@@ -230,6 +251,7 @@ def get_deactivate_confirm_keyboard():
     return keyboard.get_keyboard()
 
 
+# Создает клавиатуру подтверждения полного сброса анкеты.
 def get_reset_confirm_keyboard():
     keyboard = VkKeyboard(one_time=False, inline=False)
     keyboard.add_button(texts.BUTTON_RESET, color=VkKeyboardColor.NEGATIVE)

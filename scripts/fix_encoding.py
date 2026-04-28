@@ -31,12 +31,14 @@ SKIP_DIRS = {
 MOJIBAKE_CHARS = "ÐÑРСЃЌÂÃ¤"
 
 
+# Проверяет, содержит ли текст явные признаки битой кодировки.
 def has_suspect_text(text: str) -> bool:
     if any(ch in text for ch in MOJIBAKE_CHARS):
         return True
     return "???" in text
 
 
+# Оценивает качество текста, чтобы выбрать самый читаемый вариант исправления.
 def text_score(text: str) -> int:
     cyrillic = sum(
         1
@@ -54,6 +56,7 @@ def text_score(text: str) -> int:
     return cyrillic * 4 + latin - bad * 6 - questions * 8 - controls * 20
 
 
+# Пытается восстановить текст через перекодировку из исходной кодировки.
 def decode_roundtrip(text: str, source_encoding: str) -> str | None:
     try:
         return text.encode(source_encoding).decode("utf-8")
@@ -61,6 +64,7 @@ def decode_roundtrip(text: str, source_encoding: str) -> str | None:
         return None
 
 
+# Строит возможные исправленные варианты подозрительного фрагмента текста.
 def candidate_variants(text: str) -> list[str]:
     variants = {text}
     for encoding in ("cp1251", "latin1", "cp866"):
@@ -73,6 +77,7 @@ def candidate_variants(text: str) -> list[str]:
     return list(variants)
 
 
+# Исправляет одну строку текста и сообщает, была ли она изменена.
 def fix_line(line: str) -> tuple[str, bool, bool]:
     if not has_suspect_text(line):
         return line, False, False
@@ -91,6 +96,7 @@ def fix_line(line: str) -> tuple[str, bool, bool]:
     return best, changed, unresolved
 
 
+# Исправляет все строки текста и возвращает статистику изменений.
 def fix_text(text: str) -> tuple[str, int, list[int]]:
     changed_lines = 0
     unresolved_lines: list[int] = []
@@ -117,6 +123,7 @@ def fix_text(text: str) -> tuple[str, int, list[int]]:
     return "".join(fixed_lines), changed_lines, unresolved_lines
 
 
+# Ищет подходящие текстовые файлы в указанной корневой папке.
 def iter_text_files(root: Path) -> list[Path]:
     paths: list[Path] = []
     for path in root.rglob("*"):
@@ -132,6 +139,7 @@ def iter_text_files(root: Path) -> list[Path]:
     return paths
 
 
+# Исправляет один файл на диске и при необходимости создает backup.
 def process_file(path: Path, write: bool, backup: bool) -> tuple[bool, int, list[int]]:
     try:
         original = path.read_text(encoding="utf-8")
@@ -152,6 +160,7 @@ def process_file(path: Path, write: bool, backup: bool) -> tuple[bool, int, list
     return True, changed_lines, unresolved_lines
 
 
+# Разбирает аргументы CLI и запускает сценарий исправления кодировки.
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Исправляет типичные крокозябры после неверной перекодировки и сохраняет файлы в UTF-8."

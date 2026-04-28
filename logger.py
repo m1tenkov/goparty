@@ -20,10 +20,12 @@ if not bot_logger.handlers:
     bot_logger.propagate = False
 
 
+# Возвращает текущий UTC timestamp в ISO-формате для структурированных логов.
 def _timestamp():
     return datetime.now(timezone.utc).isoformat()
 
 
+# Обрезает или преобразует значения так, чтобы их было безопасно писать в логи.
 def _sanitize(value):
     if isinstance(value, str):
         return value[:1000]
@@ -36,6 +38,7 @@ def _sanitize(value):
     return str(value)
 
 
+# Записывает структурированное действие в JSON Lines лог действий.
 def log_action(action, **fields):
     payload = {
         "time": _timestamp(),
@@ -46,9 +49,9 @@ def log_action(action, **fields):
         file.write(json.dumps(payload, ensure_ascii=False) + "\n")
 
 
+# Записывает ошибку в основной лог бота с необязательными дополнительными полями.
 def log_error(message, **fields):
     if fields:
         bot_logger.error("%s | %s", message, json.dumps({k: _sanitize(v) for k, v in fields.items()}, ensure_ascii=False))
     else:
         bot_logger.error("%s", message)
-
