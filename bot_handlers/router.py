@@ -629,7 +629,6 @@ def start_bot_flow(vk, vk_user_id, send):
         return
 
     if existed_before:
-        send(texts.MSG_RETURNING)
         if is_profile_complete(user):
             if has_pending_likes(vk_user_id) and show_next_pending_like_if_any(user, send):
                 return
