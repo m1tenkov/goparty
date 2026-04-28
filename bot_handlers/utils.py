@@ -1,5 +1,5 @@
 ﻿import json
-from datetime import datetime
+from datetime import date
 
 from database import (
     GAME_CODES,
@@ -69,6 +69,28 @@ def event_value(obj, key, default=None):
     return getattr(obj, key, default)
 
 
+def _calculate_age_from_bdate(bdate):
+    if not bdate:
+        return None
+
+    parts = bdate.split(".")
+    if len(parts) != 3:
+        return None
+
+    try:
+        birth_day, birth_month, birth_year = map(int, parts)
+        today = date.today()
+        age = today.year - birth_year
+        if (today.month, today.day) < (birth_month, birth_day):
+            age -= 1
+    except ValueError:
+        return None
+
+    if 14 <= age <= 99:
+        return age
+    return None
+
+
 def fetch_vk_profile(vk, user_id):
     try:
         user_info = vk.users.get(user_ids=user_id, fields="bdate,city,sex")[0]
@@ -87,16 +109,9 @@ def fetch_vk_profile(vk, user_id):
     elif user_info.get("sex") == 2:
         profile["gender"] = "male"
 
-    bdate = user_info.get("bdate")
-    if bdate and len(bdate.split(".")) == 3:
-        try:
-            birth_year = int(bdate.split(".")[2])
-            current_year = datetime.now().year
-            age = current_year - birth_year
-            if 14 <= age <= 99:
-                profile["age"] = age
-        except ValueError:
-            pass
+    age = _calculate_age_from_bdate(user_info.get("bdate"))
+    if age is not None:
+        profile["age"] = age
 
     return profile
 

@@ -1,5 +1,7 @@
 ﻿import time
 
+import unicodedata
+
 from config import ENABLE_LIKE_NOTIFICATIONS, ENABLE_PROFILE_RESET_BUTTON
 from database import (
     GAME_CODES,
@@ -108,6 +110,17 @@ from .utils import (
 def _preview_text(text, limit=300):
     text = (text or "").strip()
     return text[:limit]
+
+
+def _clean_visible_text(text):
+    text = str(text or "")
+    cleaned = []
+    for char in text:
+        category = unicodedata.category(char)
+        if category in {"Cf", "Cc", "Cs"} and char not in {"\n", "\r", "\t"}:
+            continue
+        cleaned.append(char)
+    return "".join(cleaned).strip()
 
 
 def is_duplicate_action(user, action_key, window_seconds=ACTION_DEBOUNCE_SECONDS):
@@ -661,10 +674,12 @@ def handle_reg_name(user, raw_text, normalized_text, send):
     if normalized_text == texts.BUTTON_KEEP_CURRENT.lower():
         show_review(user, send)
         return
-    if vk_name and raw_text.strip() == vk_name:
+    cleaned_raw_text = _clean_visible_text(raw_text)
+    cleaned_vk_name = _clean_visible_text(vk_name)
+    if cleaned_vk_name and cleaned_raw_text == cleaned_vk_name:
         save_text_field(user, "name", vk_name)
     else:
-        candidate = raw_text.strip()
+        candidate = cleaned_raw_text
         if not candidate or len(candidate) > 50:
             send(
                 texts.MSG_INVALID_NAME,
@@ -722,10 +737,12 @@ def handle_reg_city(user, raw_text, normalized_text, send):
     if normalized_text == texts.BUTTON_KEEP_CURRENT.lower():
         show_review(user, send)
         return
-    if vk_city and raw_text.strip() == vk_city:
+    cleaned_raw_text = _clean_visible_text(raw_text)
+    cleaned_vk_city = _clean_visible_text(vk_city)
+    if cleaned_vk_city and cleaned_raw_text == cleaned_vk_city:
         save_text_field(user, "city", vk_city)
     else:
-        candidate = raw_text.strip()
+        candidate = cleaned_raw_text
         if not candidate or len(candidate) > 50:
             send(
                 texts.MSG_INVALID_CITY,
@@ -757,13 +774,13 @@ def handle_reg_looking(user, normalized_text, send):
 
 
 def handle_about(user, raw_text, attachments, send):
-    has_existing_about = bool((user.get("about") or "").strip())
+    has_existing_about = bool(_clean_visible_text(user.get("about")))
     invalid_about_keyboard = get_keep_current_keyboard() if has_existing_about else EMPTY_KEYBOARD
 
-    if has_existing_about and raw_text.strip().lower() == texts.BUTTON_KEEP_CURRENT.lower():
+    if has_existing_about and _clean_visible_text(raw_text).lower() == texts.BUTTON_KEEP_CURRENT.lower():
         show_review(user, send)
         return
-    candidate = raw_text.strip()
+    candidate = _clean_visible_text(raw_text)
     if not candidate or attachments:
         send(texts.MSG_TEXT_2000_ONLY, keyboard=invalid_about_keyboard)
         return

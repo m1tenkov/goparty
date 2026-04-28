@@ -4,7 +4,7 @@
 
 USE goparty_bot;
 
-SET @vk_user_id = '542646585';
+SET @vk_user_id = 'вставить ID';
 SET @ban_reason = 'Жалобы / нарушение правил';
 
 UPDATE profiles p

@@ -4,7 +4,7 @@
 
 USE goparty_bot;
 
-SET @vk_user_id = '542646585';
+SET @vk_user_id = 'вставить ID';
 
 UPDATE profiles p
 JOIN users u ON u.id = p.user_id
