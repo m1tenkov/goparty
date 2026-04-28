@@ -2,9 +2,11 @@ __pycache__/
 *.pyc
 *.pyo
 *.bak
+.venv/
 
 logs/
-docs/
+logs/*.log
+logs/*.jsonl
 secrets/*.txt
 secrets/*.json
 secrets/*.pem
