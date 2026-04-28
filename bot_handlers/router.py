@@ -125,6 +125,19 @@ def _clean_visible_text(text):
     return "".join(cleaned).strip()
 
 
+def _handle_banned_user(user, send):
+    if user is not None:
+        user["step"] = None
+        user["current_candidate"] = None
+        user["pending_like_profile"] = None
+        user["like_message_target_vk_user_id"] = None
+        user["like_message_resume_step"] = None
+        user["report_target_vk_user_id"] = None
+        user["report_resume_step"] = None
+        user["resume_step"] = None
+    send(texts.MSG_BANNED, keyboard=EMPTY_KEYBOARD)
+
+
 # Защищает от случайной двойной обработки одного и того же действия пользователя.
 def is_duplicate_action(user, action_key, window_seconds=ACTION_DEBOUNCE_SECONDS):
     now = time.monotonic()
@@ -588,8 +601,14 @@ def handle_incoming_like(vk, user, normalized_text, send):
 def start_bot_flow(vk, vk_user_id, send):
     existed_before = get_profile_by_vk_user_id(vk_user_id) is not None
     user = ensure_runtime_user(vk, vk_user_id)
+    if user.get("is_banned"):
+        _handle_banned_user(user, send)
+        return
     apply_vk_defaults(vk_user_id, user)
     user = sync_profile_from_db(vk, vk_user_id)
+    if user.get("is_banned"):
+        _handle_banned_user(user, send)
+        return
 
     if existed_before:
         send(texts.MSG_RETURNING)
@@ -644,6 +663,16 @@ def handle_message_event(vk, event):
     try:
         user = users.get(vk_user_id) or ensure_runtime_user(vk, vk_user_id)
         reset_profile_delivery_status(vk_user_id)
+        if user.get("is_banned"):
+            answer_event(vk, event)
+            safe_vk_send(
+                vk,
+                user_id=vk_user_id,
+                message=fit_message_text(texts.MSG_BANNED),
+                random_id=0,
+                keyboard=EMPTY_KEYBOARD,
+            )
+            return
         cmd = payload.get("cmd")
         if user.get("step") == STATE_GAMES:
             if cmd == "toggle_game":
@@ -1171,6 +1200,11 @@ def handle_message(vk, vk_user_id, text, attachments, message_id=None, payload=N
         raw_text = text or ""
         normalized_text = raw_text.strip().lower()
         parsed_payload = parse_payload(payload)
+
+        if is_profile_banned(vk_user_id):
+            user = users.get(vk_user_id) or ensure_runtime_user(vk, vk_user_id)
+            _handle_banned_user(user, send)
+            return
 
         game_buttons = {
             "dota 2": "dota2",

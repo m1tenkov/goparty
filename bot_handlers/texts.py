@@ -113,4 +113,5 @@ TEMPLATE_REPORT_MESSAGE = (
     "{reported_link}\n\n"
     "Причина:\n{reason_text}"
 )
+MSG_BANNED = "Твоя анкета заблокирована за нарушение правил. Если считаешь это ошибкой, свяжись с администратором."
 TEMPLATE_DONE_MESSAGE = "{name}, всё готово! Возвращайся :)"
