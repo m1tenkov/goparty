@@ -125,6 +125,24 @@ def _clean_visible_text(text):
     return "".join(cleaned).strip()
 
 
+def _has_meaningful_text(text):
+    blank_like_chars = {
+        "\u115f",  # Hangul choseong filler
+        "\u1160",  # Hangul jungseong filler
+        "\u2800",  # Braille pattern blank
+        "\u3164",  # Hangul filler
+        "\uffa0",  # Halfwidth hangul filler
+    }
+    for char in _clean_visible_text(text):
+        if char in blank_like_chars:
+            continue
+        category = unicodedata.category(char)
+        if category.startswith("Z") or category.startswith("C"):
+            continue
+        return True
+    return False
+
+
 def _handle_banned_user(user, send):
     if user is not None:
         user["step"] = None
@@ -737,7 +755,7 @@ def handle_reg_name(user, raw_text, normalized_text, send):
         save_text_field(user, "name", vk_name)
     else:
         candidate = cleaned_raw_text
-        if not candidate or len(candidate) > 50:
+        if not _has_meaningful_text(candidate) or len(candidate) > 50:
             send(
                 texts.MSG_INVALID_NAME,
                 keyboard=get_name_edit_keyboard(vk_name),
@@ -803,7 +821,7 @@ def handle_reg_city(user, raw_text, normalized_text, send):
         save_text_field(user, "city", vk_city)
     else:
         candidate = cleaned_raw_text
-        if not candidate or len(candidate) > 50:
+        if not _has_meaningful_text(candidate) or len(candidate) > 50:
             send(
                 texts.MSG_INVALID_CITY,
                 keyboard=get_city_edit_keyboard(vk_city),
@@ -843,7 +861,7 @@ def handle_about(user, raw_text, attachments, send):
         show_review(user, send)
         return
     candidate = _clean_visible_text(raw_text)
-    if not candidate or attachments:
+    if not _has_meaningful_text(candidate) or attachments:
         send(texts.MSG_TEXT_2000_ONLY, keyboard=invalid_about_keyboard)
         return
     if len(candidate) > ABOUT_MAX_LENGTH:
