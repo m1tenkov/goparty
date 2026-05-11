@@ -99,6 +99,7 @@ def ensure_runtime_schema():
         )
         if _column_exists(cursor, "user_photos", "photo_token") and not _column_exists(cursor, "user_photos", "photo_path"):
             cursor.execute("ALTER TABLE user_photos RENAME COLUMN photo_token TO photo_path")
+        _add_column_if_missing(cursor, "user_photos", "vk_photo_token", "TEXT NULL")
     connection.commit()
 
 
@@ -187,14 +188,20 @@ def _load_photos(db_user_id):
     with connection.cursor() as cursor:
         cursor.execute(
             """
-            SELECT photo_path
+            SELECT photo_path, vk_photo_token
             FROM user_photos
             WHERE user_id = %s
             ORDER BY sort_order
             """,
             (db_user_id,),
         )
-        return [row["photo_path"] for row in cursor.fetchall()]
+        return [
+            {
+                "path": row["photo_path"],
+                "vk_token": row.get("vk_photo_token"),
+            }
+            for row in cursor.fetchall()
+        ]
 
 
 # Собирает полную структуру профиля из сырых полей базы данных.
@@ -674,8 +681,16 @@ def save_photos(vk_user_id, photos):
         cursor.execute("DELETE FROM user_photos WHERE user_id = %s", (db_user_id,))
         if photos:
             cursor.executemany(
-                "INSERT INTO user_photos (user_id, photo_path, sort_order) VALUES (%s, %s, %s)",
-                [(db_user_id, photo, index + 1) for index, photo in enumerate(photos)],
+                "INSERT INTO user_photos (user_id, photo_path, vk_photo_token, sort_order) VALUES (%s, %s, %s, %s)",
+                [
+                    (
+                        db_user_id,
+                        photo.get("path"),
+                        photo.get("vk_token"),
+                        index + 1,
+                    )
+                    for index, photo in enumerate(photos)
+                ],
             )
     connection.commit()
 

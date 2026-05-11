@@ -1,10 +1,8 @@
 import sys
 import time
 
-from vk_api.bot_longpoll import VkBotEventType
-
-from bot_handlers import handle_message, handle_message_event
 from bot_handlers import texts
+from event_processing import process_event
 from logger import bot_logger, log_action, log_error
 from vk_bot import create_vk_transport
 
@@ -15,34 +13,6 @@ if hasattr(sys.stderr, "reconfigure"):
 
 print(texts.MSG_CONSOLE_STARTED)
 bot_logger.info("Bot started")
-
-
-# Передает VK-событие в нужный обработчик и логирует детали обработки.
-def process_event(vk, event):
-    started_at = time.perf_counter()
-    event_name = str(event.type)
-    vk_user_id = None
-    try:
-        if event.type == VkBotEventType.MESSAGE_NEW:
-            message = event.object.message
-            vk_user_id = message["from_id"]
-            text = message.get("text", "")
-            message_id = message.get("id")
-            attachments = message.get("attachments", [])
-            payload = message.get("payload")
-
-            handle_message(vk, vk_user_id, text, attachments, message_id, payload)
-
-        if event.type == VkBotEventType.MESSAGE_EVENT:
-            vk_user_id = event.object.get("user_id") if isinstance(event.object, dict) else getattr(event.object, "user_id", None)
-            handle_message_event(vk, event)
-    except Exception as error:
-        log_error("Event handler failed", event_type=event_name, vk_user_id=vk_user_id, error=str(error))
-    finally:
-        duration_ms = int((time.perf_counter() - started_at) * 1000)
-        log_action("event_processed", event_type=event_name, vk_user_id=vk_user_id, duration_ms=duration_ms)
-        if duration_ms >= 1500:
-            bot_logger.warning("Slow event | %s", {"event_type": event_name, "vk_user_id": vk_user_id, "duration_ms": duration_ms})
 
 
 while True:

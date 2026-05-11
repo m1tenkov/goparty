@@ -49,6 +49,14 @@ def _build_db_config(file_name, defaults=None):
 
 TOKEN = _env_or_file("VK_BOT_TOKEN", SECRETS_DIR / "token.txt")
 GROUP_ID = int(os.getenv("VK_GROUP_ID", "237423541"))
+VK_CALLBACK_SECRET = _env_or_file("VK_CALLBACK_SECRET", SECRETS_DIR / "vk_callback_secret.txt", "")
+VK_CALLBACK_CONFIRMATION_TOKEN = _env_or_file(
+    "VK_CALLBACK_CONFIRMATION_TOKEN",
+    SECRETS_DIR / "vk_callback_confirmation_token.txt",
+    "",
+)
+APP_HOST = os.getenv("APP_HOST", "127.0.0.1")
+APP_PORT = int(os.getenv("APP_PORT", "8000"))
 ENABLE_LIKE_NOTIFICATIONS = os.getenv("ENABLE_LIKE_NOTIFICATIONS", "true").strip().lower() in {"1", "true", "yes", "on"}
 ENABLE_PROFILE_RESET_BUTTON = True
 

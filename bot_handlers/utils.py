@@ -59,6 +59,7 @@ from .keyboards import (
 
 
 LOCAL_PHOTO_PREFIX = "storage/photos/"
+DEFAULT_PHOTO_PATH = BASE_DIR / "storage" / "photos" / "default_photo.png"
 _vk_api_method = None
 
 
@@ -302,6 +303,20 @@ def _is_local_photo_reference(value):
     return normalized.startswith(LOCAL_PHOTO_PREFIX)
 
 
+def _normalize_photo_entry(photo):
+    if isinstance(photo, dict):
+        return {
+            "path": str(photo.get("path") or "").strip(),
+            "vk_token": str(photo.get("vk_token") or "").strip() or None,
+        }
+    value = str(photo or "").strip()
+    if not value:
+        return {"path": "", "vk_token": None}
+    if _is_local_photo_reference(value):
+        return {"path": value, "vk_token": None}
+    return {"path": value, "vk_token": value}
+
+
 # Преобразует относительный путь из БД в абсолютный путь на диске.
 def resolve_local_photo_path(photo_reference):
     normalized = str(photo_reference or "").replace("\\", "/").strip()
@@ -310,10 +325,15 @@ def resolve_local_photo_path(photo_reference):
     return (BASE_DIR / Path(normalized)).resolve()
 
 
+def resolve_default_photo_path():
+    return DEFAULT_PHOTO_PATH if DEFAULT_PHOTO_PATH.exists() else None
+
+
 # Удаляет локальные фотофайлы, которые больше не используются в анкете.
 def delete_local_photo_files(photo_references):
     for reference in photo_references or []:
-        absolute_path = resolve_local_photo_path(reference)
+        photo_entry = _normalize_photo_entry(reference)
+        absolute_path = resolve_local_photo_path(photo_entry.get("path"))
         if not absolute_path:
             continue
         try:
@@ -358,7 +378,23 @@ def _download_photo_to_storage(vk_user_id, photo, sort_index):
     user_dir.mkdir(parents=True, exist_ok=True)
     file_path = user_dir / f"{sort_index}_{digest}{_photo_extension_from_url(url)}"
     file_path.write_bytes(content)
-    return file_path.relative_to(BASE_DIR).as_posix()
+    return {
+        "path": file_path.relative_to(BASE_DIR).as_posix(),
+        "vk_token": None,
+    }
+
+
+def _is_vk_photo_token_valid(vk, token):
+    if vk is None or not token:
+        return False
+    token_value = str(token).strip()
+    if token_value.startswith("photo"):
+        token_value = token_value[5:]
+    try:
+        response = vk.photos.getById(photos=token_value)
+    except Exception:
+        return False
+    return bool(response)
 
 
 # Извлекает фото из вложений VK, скачивает их в локальное хранилище и отмечает наличие других типов вложений.
@@ -430,34 +466,48 @@ def build_photo_attachment(vk_or_profile, profile=None, peer_id=None):
     vk = vk_or_profile if profile is not None else _vk_api_method
     profile = profile or vk_or_profile
     attachments = []
-    local_photo_paths = []
-    for photo in profile.get("photos", []):
-        token = str(photo).strip()
-        if not token:
+    local_photo_entries = []
+    normalized_photos = []
+    for raw_photo in profile.get("photos", []):
+        photo = _normalize_photo_entry(raw_photo)
+        normalized_photos.append(photo)
+        token = str(photo.get("vk_token") or "").strip()
+        path = str(photo.get("path") or "").strip()
+        if not token and not path:
             continue
-        if _is_local_photo_reference(token):
-            absolute_path = resolve_local_photo_path(token)
-            if absolute_path and absolute_path.exists():
-                local_photo_paths.append(str(absolute_path))
+        absolute_path = resolve_local_photo_path(path) if _is_local_photo_reference(path) else None
+        has_local_file = bool(absolute_path and absolute_path.exists())
+        if token and (has_local_file or _is_vk_photo_token_valid(vk, token)):
+            if not token.startswith("photo"):
+                token = f"photo{token}"
+            attachments.append(token)
             continue
-        if not token.startswith("photo"):
-            token = f"photo{token}"
-        attachments.append(token)
+        if has_local_file:
+            local_photo_entries.append((photo, str(absolute_path)))
+            continue
+        default_photo_path = resolve_default_photo_path()
+        if default_photo_path:
+            local_photo_entries.append((photo, str(default_photo_path)))
 
-    if local_photo_paths:
+    if local_photo_entries:
         if vk is None:
             return ",".join(attachments) or None
-        uploaded = VkUpload(vk).photo_messages(local_photo_paths, peer_id=peer_id)
-        for item in uploaded:
+        uploaded = VkUpload(vk).photo_messages([absolute_path for _, absolute_path in local_photo_entries], peer_id=peer_id)
+        for (photo, _), item in zip(local_photo_entries, uploaded):
             owner_id = item.get("owner_id")
             photo_id = item.get("id")
             access_key = item.get("access_key")
             if owner_id is None or photo_id is None:
                 continue
-            token = f"photo{owner_id}_{photo_id}"
+            token_value = f"{owner_id}_{photo_id}"
             if access_key:
-                token = f"{token}_{access_key}"
-            attachments.append(token)
+                token_value = f"{token_value}_{access_key}"
+            photo["vk_token"] = token_value
+            attachments.append(f"photo{token_value}")
+
+    profile["photos"] = normalized_photos
+    if profile.get("vk_user_id") is not None:
+        save_photos(profile["vk_user_id"], normalized_photos)
 
     return ",".join(attachments) or None
 
@@ -476,13 +526,13 @@ def save_games_state(user):
 
 # Сохраняет текущий набор фотографий из runtime-состояния в базу.
 def save_photos_state(user, photos):
-    previous_photos = list(user.get("photos", []))
-    user["photos"] = list(photos[:3])
+    previous_photos = [_normalize_photo_entry(photo) for photo in user.get("photos", [])]
+    user["photos"] = [_normalize_photo_entry(photo) for photo in photos[:3]]
     save_photos(user["vk_user_id"], user["photos"])
     delete_local_photo_files(
         [
             photo for photo in previous_photos
-            if photo not in user["photos"] and _is_local_photo_reference(photo)
+            if photo not in user["photos"] and _is_local_photo_reference(photo.get("path"))
         ]
     )
 
