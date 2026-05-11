@@ -41,6 +41,21 @@ def _add_column_if_missing(cursor, table_name, column_name, column_definition):
         cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_definition}")
 
 
+def _column_exists(cursor, table_name, column_name):
+    cursor.execute(
+        """
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = %s
+          AND table_name = %s
+          AND column_name = %s
+        LIMIT 1
+        """,
+        (DB_NAME, table_name, column_name),
+    )
+    return cursor.fetchone() is not None
+
+
 # Проверяет, что служебные таблицы и runtime-поля профиля существуют в базе.
 def ensure_runtime_schema():
     with connection.cursor() as cursor:
@@ -82,6 +97,8 @@ def ensure_runtime_schema():
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
             """
         )
+        if _column_exists(cursor, "user_photos", "photo_token") and not _column_exists(cursor, "user_photos", "photo_path"):
+            cursor.execute("ALTER TABLE user_photos RENAME COLUMN photo_token TO photo_path")
     connection.commit()
 
 
@@ -165,19 +182,19 @@ def _load_game_codes(db_user_id):
         return [row["code"] for row in cursor.fetchall()]
 
 
-# Загружает сохраненные photo token пользователя в порядке отображения.
+# Загружает сохраненные пути к фото пользователя в порядке отображения.
 def _load_photos(db_user_id):
     with connection.cursor() as cursor:
         cursor.execute(
             """
-            SELECT photo_token
+            SELECT photo_path
             FROM user_photos
             WHERE user_id = %s
             ORDER BY sort_order
             """,
             (db_user_id,),
         )
-        return [row["photo_token"] for row in cursor.fetchall()]
+        return [row["photo_path"] for row in cursor.fetchall()]
 
 
 # Собирает полную структуру профиля из сырых полей базы данных.
@@ -657,7 +674,7 @@ def save_photos(vk_user_id, photos):
         cursor.execute("DELETE FROM user_photos WHERE user_id = %s", (db_user_id,))
         if photos:
             cursor.executemany(
-                "INSERT INTO user_photos (user_id, photo_token, sort_order) VALUES (%s, %s, %s)",
+                "INSERT INTO user_photos (user_id, photo_path, sort_order) VALUES (%s, %s, %s)",
                 [(db_user_id, photo, index + 1) for index, photo in enumerate(photos)],
             )
     connection.commit()

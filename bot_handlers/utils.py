@@ -1,6 +1,13 @@
 ﻿import json
 from datetime import date
+from pathlib import Path
+from urllib.parse import urlparse
 
+import hashlib
+import requests
+from vk_api.upload import VkUpload
+
+from config import BASE_DIR, PHOTO_STORAGE_DIR
 from database import (
     GAME_CODES,
     GAME_TITLES,
@@ -49,6 +56,15 @@ from .keyboards import (
     get_no_profiles_keyboard,
     get_review_keyboard,
 )
+
+
+LOCAL_PHOTO_PREFIX = "storage/photos/"
+_vk_api_method = None
+
+
+def set_vk_transport(vk):
+    global _vk_api_method
+    _vk_api_method = vk
 
 # Преобразует payload VK в словарь независимо от исходного формата.
 def parse_payload(payload):
@@ -280,8 +296,73 @@ def format_profile(user, include_review=False):
     return fit_message_text(format_profile_text(name, age, city, games_text, about, include_review=include_review))
 
 
-# Извлекает VK photo token из вложений и отмечает наличие других типов вложений.
-def extract_photo_payload(attachments):
+# Возвращает True, если строка похожа на локальный путь к фото в хранилище проекта.
+def _is_local_photo_reference(value):
+    normalized = str(value or "").replace("\\", "/").strip()
+    return normalized.startswith(LOCAL_PHOTO_PREFIX)
+
+
+# Преобразует относительный путь из БД в абсолютный путь на диске.
+def resolve_local_photo_path(photo_reference):
+    normalized = str(photo_reference or "").replace("\\", "/").strip()
+    if not normalized or not _is_local_photo_reference(normalized):
+        return None
+    return (BASE_DIR / Path(normalized)).resolve()
+
+
+# Удаляет локальные фотофайлы, которые больше не используются в анкете.
+def delete_local_photo_files(photo_references):
+    for reference in photo_references or []:
+        absolute_path = resolve_local_photo_path(reference)
+        if not absolute_path:
+            continue
+        try:
+            absolute_path.unlink(missing_ok=True)
+        except OSError:
+            continue
+
+
+def _pick_best_photo_url(photo):
+    sizes = photo.get("sizes") or []
+    best_url = None
+    best_area = -1
+    for item in sizes:
+        url = item.get("url")
+        if not url:
+            continue
+        width = int(item.get("width") or 0)
+        height = int(item.get("height") or 0)
+        area = width * height
+        if area >= best_area:
+            best_url = url
+            best_area = area
+    return best_url or (photo.get("orig_photo") or {}).get("url")
+
+
+def _photo_extension_from_url(url):
+    suffix = Path(urlparse(str(url)).path).suffix.lower()
+    if suffix in {".jpg", ".jpeg", ".png", ".gif", ".webp"}:
+        return suffix
+    return ".jpg"
+
+
+def _download_photo_to_storage(vk_user_id, photo, sort_index):
+    url = _pick_best_photo_url(photo)
+    if not url:
+        return None
+    response = requests.get(url, timeout=20)
+    response.raise_for_status()
+    content = response.content
+    digest = hashlib.sha1(content).hexdigest()[:16]
+    user_dir = PHOTO_STORAGE_DIR / str(vk_user_id)
+    user_dir.mkdir(parents=True, exist_ok=True)
+    file_path = user_dir / f"{sort_index}_{digest}{_photo_extension_from_url(url)}"
+    file_path.write_bytes(content)
+    return file_path.relative_to(BASE_DIR).as_posix()
+
+
+# Извлекает фото из вложений VK, скачивает их в локальное хранилище и отмечает наличие других типов вложений.
+def extract_photo_payload(attachments, vk_user_id):
     if not attachments:
         return [], False
 
@@ -293,15 +374,9 @@ def extract_photo_payload(attachments):
                 has_other_content = True
                 continue
             photo = attachment.get("photo") or {}
-            owner_id = photo.get("owner_id")
-            photo_id = photo.get("id")
-            access_key = photo.get("access_key")
-            if owner_id is None or photo_id is None:
-                continue
-            token = f"{owner_id}_{photo_id}"
-            if access_key:
-                token = f"{token}_{access_key}"
-            photos.append(token)
+            stored_path = _download_photo_to_storage(vk_user_id, photo, len(photos) + 1)
+            if stored_path:
+                photos.append(stored_path)
         return photos, has_other_content
 
     photo_keys = []
@@ -315,23 +390,29 @@ def extract_photo_payload(attachments):
 
     for base_key in photo_keys:
         photo_value = attachments.get(base_key)
-        if not photo_value:
+        if not photo_value or not str(photo_value).startswith(("http://", "https://")):
             continue
-        access_key = attachments.get(f"{base_key}_access_key")
-        token = f"{photo_value}_{access_key}" if access_key else photo_value
-        photos.append(token)
+        stored_path = _download_photo_to_storage(
+            vk_user_id,
+            {
+                "sizes": [{"url": photo_value}],
+            },
+            len(photos) + 1,
+        )
+        if stored_path:
+            photos.append(stored_path)
 
     return photos, has_other_content
 
 
-# Возвращает только photo token из общего payload вложений.
-def extract_photo_attachments(attachments):
-    photos, _ = extract_photo_payload(attachments)
+# Возвращает только пути к фото из общего payload вложений.
+def extract_photo_attachments(attachments, vk_user_id):
+    photos, _ = extract_photo_payload(attachments, vk_user_id)
     return photos or None
 
 
-# Загружает photo-вложения напрямую из сообщения VK по его message ID.
-def extract_photo_attachments_from_message(vk, message_id):
+# Загружает photo-вложения напрямую из сообщения VK по его message ID и сохраняет их локально.
+def extract_photo_attachments_from_message(vk, vk_user_id, message_id):
     if not message_id:
         return [], False
     try:
@@ -341,20 +422,44 @@ def extract_photo_attachments_from_message(vk, message_id):
     items = response.get("items") or []
     if not items:
         return [], False
-    return extract_photo_payload(items[0].get("attachments") or [])
+    return extract_photo_payload(items[0].get("attachments") or [], vk_user_id)
 
 
-# Преобразует сохраненные photo token в строку attachment для VK.
-def build_photo_attachment(profile):
-    photos = []
+# Преобразует сохраненные локальные файлы или старые VK token в строку attachment для VK.
+def build_photo_attachment(vk_or_profile, profile=None, peer_id=None):
+    vk = vk_or_profile if profile is not None else _vk_api_method
+    profile = profile or vk_or_profile
+    attachments = []
+    local_photo_paths = []
     for photo in profile.get("photos", []):
         token = str(photo).strip()
         if not token:
             continue
+        if _is_local_photo_reference(token):
+            absolute_path = resolve_local_photo_path(token)
+            if absolute_path and absolute_path.exists():
+                local_photo_paths.append(str(absolute_path))
+            continue
         if not token.startswith("photo"):
             token = f"photo{token}"
-        photos.append(token)
-    return ",".join(photos) or None
+        attachments.append(token)
+
+    if local_photo_paths:
+        if vk is None:
+            return ",".join(attachments) or None
+        uploaded = VkUpload(vk).photo_messages(local_photo_paths, peer_id=peer_id)
+        for item in uploaded:
+            owner_id = item.get("owner_id")
+            photo_id = item.get("id")
+            access_key = item.get("access_key")
+            if owner_id is None or photo_id is None:
+                continue
+            token = f"photo{owner_id}_{photo_id}"
+            if access_key:
+                token = f"{token}_{access_key}"
+            attachments.append(token)
+
+    return ",".join(attachments) or None
 
 
 # Сохраняет одно простое поле анкеты и в памяти, и в базе данных.
@@ -371,8 +476,15 @@ def save_games_state(user):
 
 # Сохраняет текущий набор фотографий из runtime-состояния в базу.
 def save_photos_state(user, photos):
+    previous_photos = list(user.get("photos", []))
     user["photos"] = list(photos[:3])
     save_photos(user["vk_user_id"], user["photos"])
+    delete_local_photo_files(
+        [
+            photo for photo in previous_photos
+            if photo not in user["photos"] and _is_local_photo_reference(photo)
+        ]
+    )
 
 
 # Отправляет inline-клавиатуру для выбора игр.

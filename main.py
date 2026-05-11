@@ -6,7 +6,7 @@ from vk_api.bot_longpoll import VkBotEventType
 from bot_handlers import handle_message, handle_message_event
 from bot_handlers import texts
 from logger import bot_logger, log_action, log_error
-from vk_bot import create_longpoll, vk
+from vk_bot import create_vk_transport
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -18,7 +18,7 @@ bot_logger.info("Bot started")
 
 
 # Передает VK-событие в нужный обработчик и логирует детали обработки.
-def process_event(event):
+def process_event(vk, event):
     started_at = time.perf_counter()
     event_name = str(event.type)
     vk_user_id = None
@@ -47,10 +47,11 @@ def process_event(event):
 
 while True:
     try:
-        longpoll = create_longpoll()
+        vk_session, vk, longpoll = create_vk_transport()
+        log_action("longpoll_connected")
 
         for event in longpoll.listen():
-            process_event(event)
+            process_event(vk, event)
     except Exception as error:
         log_error("Long Poll reconnect after error", error=str(error))
         print(f"{texts.MSG_CONSOLE_LONGPOLL_RECONNECT}{error}")

@@ -6,6 +6,8 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent
 SECRETS_DIR = BASE_DIR / "secrets"
 SECRETS_DIR.mkdir(exist_ok=True)
+PHOTO_STORAGE_DIR = BASE_DIR / "storage" / "photos"
+PHOTO_STORAGE_DIR.mkdir(parents=True, exist_ok=True)
 
 
 # Читает текстовый секрет из файла и возвращает None, если файла нет.

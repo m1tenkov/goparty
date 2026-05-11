@@ -78,6 +78,7 @@ from .utils import (
     ask_next_required_field,
     apply_vk_defaults,
     build_photo_attachment,
+    delete_local_photo_files,
     ensure_runtime_user,
     event_value,
     extract_photo_payload,
@@ -96,6 +97,7 @@ from .utils import (
     save_photos_state,
     save_text_field,
     persist_runtime_user,
+    set_vk_transport,
     show_current_or_next_candidate,
     show_next_candidate,
     show_previous_candidate,
@@ -342,6 +344,7 @@ def resume_after_like_message(user, send):
 
 # Отправляет пользователю уведомление о лайке с превью профиля лайкнувшего.
 def send_like_notification(vk, target_vk_user_id, liker_profile):
+    set_vk_transport(vk)
     if is_bot_vk_user_id(target_vk_user_id):
         return
     target_user = ensure_runtime_user(vk, target_vk_user_id)
@@ -360,13 +363,14 @@ def send_like_notification(vk, target_vk_user_id, liker_profile):
         message=fit_message_text(message),
         random_id=0,
         keyboard=get_incoming_like_keyboard(),
-        attachment=build_photo_attachment(liker_profile),
+        attachment=build_photo_attachment(vk, liker_profile),
     ):
         mark_pending_like_notified(target_vk_user_id, liker_profile["vk_user_id"])
 
 
 # Отправляет уведомление о взаимном мэтче одной из сторон.
 def send_match_notification(vk, recipient_vk_user_id, other_profile, like_message=None):
+    set_vk_transport(vk)
     if is_bot_vk_user_id(recipient_vk_user_id):
         return
     other_name = other_profile.get("name") or texts.LABEL_THIS_PERSON
@@ -384,7 +388,7 @@ def send_match_notification(vk, recipient_vk_user_id, other_profile, like_messag
         message=fit_message_text(message),
         random_id=0,
         keyboard=get_matches_keyboard(),
-        attachment=build_photo_attachment(other_profile),
+        attachment=build_photo_attachment(vk, other_profile),
     )
 
 
@@ -400,12 +404,13 @@ def repeat_incoming_like_prompt(user, send):
     send(
         message,
         keyboard=get_incoming_like_keyboard(),
-        attachment=build_photo_attachment(liker_profile),
+        attachment=build_photo_attachment(vk, liker_profile),
     )
 
 
 # Отправляет готовую жалобу на анкету в чат модерации.
 def send_report_to_moderation(vk, reporter_user, candidate_profile, reason_text):
+    set_vk_transport(vk)
     report_chat_peer_id = 2000000001
     reporter_name = reporter_user.get("name") or f"VK {reporter_user['vk_user_id']}"
     reported_name = candidate_profile.get("name") or texts.LABEL_NO_NAME
@@ -426,7 +431,7 @@ def send_report_to_moderation(vk, reporter_user, candidate_profile, reason_text)
             )
         ),
         random_id=0,
-        attachment=build_photo_attachment(candidate_profile),
+        attachment=build_photo_attachment(vk, candidate_profile),
     )
 
 
@@ -667,6 +672,7 @@ def edit_event_message(vk, event, text, keyboard):
 
 # Обрабатывает callback-события VK, в основном для inline-выбора игр.
 def handle_message_event(vk, event):
+    set_vk_transport(vk)
     payload = parse_payload(event_value(event.object, "payload"))
     vk_user_id = event_value(event.object, "user_id")
     before_user = users.get(vk_user_id, {})
@@ -888,9 +894,9 @@ def handle_photos(vk, user, raw_text, attachments, message_id, send):
         send(texts.MSG_PHOTOS_ONLY)
         return
 
-    new_photos, has_other_content = extract_photo_attachments_from_message(vk, message_id)
+    new_photos, has_other_content = extract_photo_attachments_from_message(vk, user["vk_user_id"], message_id)
     if not new_photos and attachments:
-        new_photos, has_other_content = extract_photo_payload(attachments)
+        new_photos, has_other_content = extract_photo_payload(attachments, user["vk_user_id"])
     if not new_photos:
         if user.get("step") == STATE_PHOTO_MORE:
             if has_other_content:
@@ -1170,6 +1176,7 @@ def handle_reset_confirm(vk, user, normalized_text, send):
         return
     if ENABLE_PROFILE_RESET_BUTTON and normalized_text == texts.BUTTON_RESET.lower():
         vk_user_id = user["vk_user_id"]
+        delete_local_photo_files(user.get("photos", []))
         delete_user_data(vk_user_id)
         users.pop(vk_user_id, None)
         send(texts.MSG_RESET_DONE, keyboard=EMPTY_KEYBOARD)
@@ -1182,6 +1189,7 @@ def handle_reset_confirm(vk, user, normalized_text, send):
 
 # Главный обработчик входящего сообщения VK, который маршрутизирует его по текущему состоянию.
 def handle_message(vk, vk_user_id, text, attachments, message_id=None, payload=None):
+    set_vk_transport(vk)
     before_user = users.get(vk_user_id, {})
     log_action(
         "incoming_message",
