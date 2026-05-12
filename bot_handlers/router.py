@@ -1241,6 +1241,11 @@ def handle_message(vk, vk_user_id, text, attachments, message_id=None, payload=N
             "dead by daylight": "dbd",
             "genshin impact": "genshin",
         }
+        game_button_aliases = {}
+        for title, code in game_buttons.items():
+            game_button_aliases[title] = code
+            game_button_aliases[f"{texts.EMOJI_CHECK.lower()} {title}"] = code
+            game_button_aliases[f"{texts.EMOJI_CROSS.lower()} {title}"] = code
 
         if vk_user_id in users and get_profile_by_vk_user_id(vk_user_id) is None:
             users.pop(vk_user_id, None)
@@ -1272,6 +1277,20 @@ def handle_message(vk, vk_user_id, text, attachments, message_id=None, payload=N
             handle_reg_looking(user, normalized_text, send)
             return
         if step == STATE_GAMES:
+            if normalized_text == texts.BUTTON_GAMES_DONE.lower():
+                if is_duplicate_action(user, "games:done"):
+                    return
+                user["step"] = None
+                user["games_step_completed"] = True
+                save_games_state(user)
+                if ask_next_required_field(user, send):
+                    return
+                show_review(user, send)
+                return
+
+            game_code = game_button_aliases.get(normalized_text)
+            if game_code:
+                user[game_code] = 0 if user.get(game_code) else 1
             show_games_picker(user, send)
             return
         if step == STATE_ABOUT:
