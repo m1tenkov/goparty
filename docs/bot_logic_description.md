@@ -16,11 +16,11 @@
 
 ## Общая архитектура
 
-Бот работает через `VK Long Poll`.
+Бот работает через `VK Callback API`.
 
 Основной поток такой:
 
-1. `main.py` запускает бесконечное прослушивание событий VK.
+1. `app.py` принимает HTTP callback-события от VK на endpoint `/vk/callback`.
 2. Для `MESSAGE_NEW` вызывается `handle_message(...)`.
 3. Для `MESSAGE_EVENT` вызывается `handle_message_event(...)`.
 4. Логика диалога сосредоточена в `bot_handlers/router.py`.
@@ -57,7 +57,7 @@
 
 - `config.py` читает токен VK из `VK_BOT_TOKEN` или `secrets/token.txt`;
 - `config.py` собирает конфиг БД из переменных окружения или `secrets/local_db.json`;
-- `vk_bot.py` создает VK-сессию и объект Long Poll;
+- `vk_bot.py` создает VK-сессию и объект VK API;
 - `database.py` открывает MySQL-подключение и вызывает `ensure_runtime_schema()`.
 
 `ensure_runtime_schema()` гарантирует наличие:
@@ -73,7 +73,7 @@
   - `delivery_error_at`
   - `games_step_completed`
 
-Если Long Poll падает по ошибке, `main.py` пишет ошибку в лог, ждет 3 секунды и пересоздает объект Long Poll.
+Если обработчик callback-события падает по ошибке, она логируется в `event_processing.py`, а HTTP endpoint продолжает принимать следующие события.
 
 ## Хранение данных
 

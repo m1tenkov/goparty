@@ -54,7 +54,7 @@ LOOKING_LABEL_FEMALE = BUTTON_LOOKING_FEMALE
 LOOKING_LABEL_ANY = BUTTON_LOOKING_ANY
 
 MSG_GAMES_SUMMARY_PREFIX = "Твои игры: "
-MSG_GAMES_PICKER = 'Выбери игры и нажми "Готово"'
+MSG_GAMES_PICKER = 'Во что играешь? Выбери и нажми "готово"'
 MSG_GAMES_BUTTONS = "Игры:"
 MSG_PHOTOS_ENOUGH = "Фото уже достаточно"
 MSG_ADD_ONE_PHOTO = "Добавь ещё 1 фото, если хочешь"
