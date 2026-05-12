@@ -277,6 +277,10 @@ def format_games_picker_prompt():
     return texts.MSG_GAMES_PICKER
 
 
+def format_games_buttons_message():
+    return texts.MSG_GAMES_BUTTONS
+
+
 # Формирует подсказку после загрузки меньше трех фотографий.
 def format_photo_more_prompt(current_count):
     remaining = max(0, 3 - int(current_count))
@@ -539,12 +543,16 @@ def save_photos_state(user, photos):
 
 # Отправляет inline-клавиатуру для выбора игр.
 def show_games_picker(user, send):
-    send(format_games_picker_prompt(), keyboard=get_games_keyboard(user))
+    send(format_games_buttons_message(), keyboard=get_games_keyboard(user))
 
 
 # Запускает шаг выбора игр и при необходимости скрывает предыдущую reply-клавиатуру.
 def start_games_flow(user, send, clear_reply_keyboard=False):
     user["step"] = STATE_GAMES
+    if clear_reply_keyboard:
+        send(format_games_picker_prompt(), keyboard=EMPTY_KEYBOARD)
+    else:
+        send(format_games_picker_prompt())
     show_games_picker(user, send)
 
 

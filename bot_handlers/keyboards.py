@@ -122,48 +122,57 @@ def get_city_edit_keyboard(vk_city):
     return keyboard.get_keyboard()
 
 
-# Создает reply-клавиатуру для выбора игр внизу чата.
+# Создает inline callback-клавиатуру для выбора игр.
 def get_games_keyboard(user):
-    keyboard = VkKeyboard(one_time=False, inline=False)
-    keyboard.add_button(
+    keyboard = VkKeyboard(one_time=False, inline=True)
+    keyboard.add_callback_button(
         f"{texts.EMOJI_CHECK if user.get('dota2') else texts.EMOJI_CROSS} Dota 2",
         color=VkKeyboardColor.PRIMARY,
+        payload={"cmd": "toggle_game", "field": "dota2"},
     )
-    keyboard.add_button(
+    keyboard.add_callback_button(
         f"{texts.EMOJI_CHECK if user.get('cs2') else texts.EMOJI_CROSS} CS2",
         color=VkKeyboardColor.PRIMARY,
+        payload={"cmd": "toggle_game", "field": "cs2"},
     )
     keyboard.add_line()
-    keyboard.add_button(
+    keyboard.add_callback_button(
         f"{texts.EMOJI_CHECK if user.get('minecraft') else texts.EMOJI_CROSS} Minecraft",
         color=VkKeyboardColor.PRIMARY,
+        payload={"cmd": "toggle_game", "field": "minecraft"},
     )
-    keyboard.add_button(
+    keyboard.add_callback_button(
         f"{texts.EMOJI_CHECK if user.get('mlbb') else texts.EMOJI_CROSS} MLBB",
         color=VkKeyboardColor.PRIMARY,
+        payload={"cmd": "toggle_game", "field": "mlbb"},
     )
     keyboard.add_line()
-    keyboard.add_button(
+    keyboard.add_callback_button(
         f"{texts.EMOJI_CHECK if user.get('valorant') else texts.EMOJI_CROSS} Valorant",
         color=VkKeyboardColor.PRIMARY,
+        payload={"cmd": "toggle_game", "field": "valorant"},
     )
-    keyboard.add_button(
+    keyboard.add_callback_button(
         f"{texts.EMOJI_CHECK if user.get('pubg') else texts.EMOJI_CROSS} PUBG",
         color=VkKeyboardColor.PRIMARY,
+        payload={"cmd": "toggle_game", "field": "pubg"},
     )
     keyboard.add_line()
-    keyboard.add_button(
+    keyboard.add_callback_button(
         f"{texts.EMOJI_CHECK if user.get('dbd') else texts.EMOJI_CROSS} Dead by Daylight",
         color=VkKeyboardColor.PRIMARY,
+        payload={"cmd": "toggle_game", "field": "dbd"},
     )
-    keyboard.add_button(
+    keyboard.add_callback_button(
         f"{texts.EMOJI_CHECK if user.get('genshin') else texts.EMOJI_CROSS} Genshin Impact",
         color=VkKeyboardColor.PRIMARY,
+        payload={"cmd": "toggle_game", "field": "genshin"},
     )
     keyboard.add_line()
-    keyboard.add_button(
+    keyboard.add_callback_button(
         texts.BUTTON_GAMES_DONE,
         color=VkKeyboardColor.POSITIVE,
+        payload={"cmd": "games_done"},
     )
     return keyboard.get_keyboard()
 
