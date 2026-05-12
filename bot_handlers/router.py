@@ -1415,6 +1415,9 @@ def handle_message(vk, vk_user_id, text, attachments, message_id=None, payload=N
         if step == STATE_REVIEW:
             handle_review(user, normalized_text, send)
             return
+        if step in {STATE_FILTERS, STATE_FILTERS_SORT, STATE_FILTERS_AGE, STATE_FILTERS_GAME}:
+            handle_filters(user, raw_text, normalized_text, send)
+            return
         if step == STATE_EDIT_MENU:
             handle_edit_menu(user, normalized_text, send)
             return
