@@ -97,6 +97,21 @@ def ensure_runtime_schema():
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
             """
         )
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS user_filters (
+                user_id BIGINT(20) UNSIGNED NOT NULL,
+                sort_mode ENUM('games', 'city') NOT NULL DEFAULT 'games',
+                age_min TINYINT UNSIGNED DEFAULT NULL,
+                age_max TINYINT UNSIGNED DEFAULT NULL,
+                required_game_id INT DEFAULT NULL,
+                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (user_id),
+                CONSTRAINT fk_user_filters_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+                CONSTRAINT fk_user_filters_game FOREIGN KEY (required_game_id) REFERENCES games (id) ON DELETE SET NULL
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+            """
+        )
         if _column_exists(cursor, "user_photos", "photo_token") and not _column_exists(cursor, "user_photos", "photo_path"):
             cursor.execute("ALTER TABLE user_photos RENAME COLUMN photo_token TO photo_path")
         _add_column_if_missing(cursor, "user_photos", "vk_photo_token", "TEXT NULL")
@@ -122,6 +137,13 @@ GAME_TITLES = {
     "pubg": "PUBG",
     "dbd": "Dead by Daylight",
     "genshin": "Genshin Impact",
+}
+
+DEFAULT_FILTERS = {
+    "filter_sort": "games",
+    "filter_age_min": None,
+    "filter_age_max": None,
+    "filter_required_game": None,
 }
 
 
@@ -204,6 +226,44 @@ def _load_photos(db_user_id):
         ]
 
 
+def _load_filters(db_user_id):
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT
+                uf.sort_mode,
+                uf.age_min,
+                uf.age_max,
+                g.code AS required_game_code
+            FROM user_filters uf
+            LEFT JOIN games g ON g.id = uf.required_game_id
+            WHERE uf.user_id = %s
+            """,
+            (db_user_id,),
+        )
+        row = cursor.fetchone()
+
+    if not row:
+        return dict(DEFAULT_FILTERS)
+
+    sort_mode = row.get("sort_mode")
+    if sort_mode not in {"games", "city"}:
+        sort_mode = DEFAULT_FILTERS["filter_sort"]
+
+    age_min = row.get("age_min")
+    age_max = row.get("age_max")
+    required_game_code = row.get("required_game_code")
+    if required_game_code not in GAME_CODES:
+        required_game_code = None
+
+    return {
+        "filter_sort": sort_mode,
+        "filter_age_min": int(age_min) if age_min is not None else None,
+        "filter_age_max": int(age_max) if age_max is not None else None,
+        "filter_required_game": required_game_code,
+    }
+
+
 # Собирает полную структуру профиля из сырых полей базы данных.
 def _build_profile(base_row):
     if not base_row:
@@ -229,6 +289,7 @@ def _build_profile(base_row):
         "games": _load_game_codes(base_row["db_user_id"]),
         "photos": _load_photos(base_row["db_user_id"]),
     }
+    profile.update(_load_filters(base_row["db_user_id"]))
 
     for code in GAME_CODES:
         profile[code] = 1 if code in profile["games"] else 0
@@ -570,6 +631,42 @@ def save_runtime_state(vk_user_id, state):
     return True
 
 
+def save_user_filters(vk_user_id, filters):
+    user_row = get_or_create_user(vk_user_id)
+    sort_mode = filters.get("filter_sort") if filters.get("filter_sort") in {"games", "city"} else DEFAULT_FILTERS["filter_sort"]
+    age_min = filters.get("filter_age_min")
+    age_max = filters.get("filter_age_max")
+    required_game = filters.get("filter_required_game")
+    required_game_id = None
+
+    with connection.cursor() as cursor:
+        if required_game in GAME_CODES:
+            cursor.execute("SELECT id FROM games WHERE code = %s LIMIT 1", (required_game,))
+            row = cursor.fetchone()
+            required_game_id = row["id"] if row else None
+
+        cursor.execute(
+            """
+            INSERT INTO user_filters (user_id, sort_mode, age_min, age_max, required_game_id)
+            VALUES (%s, %s, %s, %s, %s)
+            ON DUPLICATE KEY UPDATE
+                sort_mode = VALUES(sort_mode),
+                age_min = VALUES(age_min),
+                age_max = VALUES(age_max),
+                required_game_id = VALUES(required_game_id)
+            """,
+            (
+                user_row["id"],
+                sort_mode,
+                age_min if age_min is not None else None,
+                age_max if age_max is not None else None,
+                required_game_id,
+            ),
+        )
+    connection.commit()
+    return True
+
+
 # Удаляет пользователя и все связанные данные через каскадные внешние ключи.
 def delete_user_data(vk_user_id):
     user_row = get_user_row_by_vk_user_id(vk_user_id)
@@ -701,7 +798,7 @@ def save_photos(vk_user_id, photos):
 
 
 # Подбирает следующую анкету для просмотра по правилам матчинга бота.
-def get_random_candidate(vk_user_id):
+def get_random_candidate(vk_user_id, filters=None):
     current_profile = get_profile_by_vk_user_id(vk_user_id)
     if not current_profile:
         return None
@@ -710,6 +807,12 @@ def get_random_candidate(vk_user_id):
     current_gender = current_profile.get("gender")
     current_looking_for = current_profile.get("looking_for")
     current_age = current_profile.get("age")
+    current_city = (current_profile.get("city") or "").strip()
+    filters = filters or {}
+    filter_sort = filters.get("filter_sort", "games")
+    filter_age_min = filters.get("filter_age_min")
+    filter_age_max = filters.get("filter_age_max")
+    filter_required_game = filters.get("filter_required_game")
 
     query = """
         SELECT
@@ -717,6 +820,10 @@ def get_random_candidate(vk_user_id):
             u.vk_user_id,
             COUNT(DISTINCT current_ug.game_id) AS shared_games,
             ABS(COALESCE(p.age, 0) - %s) AS age_distance,
+            CASE
+                WHEN %s <> '' AND LOWER(COALESCE(p.city, '')) = LOWER(%s) THEN 1
+                ELSE 0
+            END AS same_city,
             u.created_at AS user_created_at
         FROM users u
         JOIN profiles p ON p.user_id = u.id
@@ -751,6 +858,8 @@ def get_random_candidate(vk_user_id):
     """
     params = [
         int(current_age) if current_age is not None else 0,
+        current_city,
+        current_city,
         current_db_user_id,
         current_db_user_id,
         current_db_user_id,
@@ -765,11 +874,32 @@ def get_random_candidate(vk_user_id):
         query += " AND (p.looking_for = 'any' OR p.looking_for = %s)"
         params.append(current_gender)
 
-    query += """
-        GROUP BY u.id, u.vk_user_id, p.age, u.created_at
-        ORDER BY shared_games DESC, age_distance ASC, user_created_at DESC, u.id DESC
-        LIMIT 1
-    """
+    if filter_age_min is not None:
+        query += " AND p.age >= %s"
+        params.append(int(filter_age_min))
+
+    if filter_age_max is not None:
+        query += " AND p.age <= %s"
+        params.append(int(filter_age_max))
+
+    if filter_required_game in GAME_CODES:
+        query += """
+          AND EXISTS (
+              SELECT 1
+              FROM user_games filter_ug
+              JOIN games filter_g ON filter_g.id = filter_ug.game_id
+              WHERE filter_ug.user_id = u.id
+                AND filter_g.code = %s
+          )
+        """
+        params.append(filter_required_game)
+
+    query += " GROUP BY u.id, u.vk_user_id, p.age, p.city, u.created_at"
+    if filter_sort == "city":
+        query += " ORDER BY same_city DESC, shared_games DESC, age_distance ASC, user_created_at DESC, u.id DESC"
+    else:
+        query += " ORDER BY shared_games DESC, same_city DESC, age_distance ASC, user_created_at DESC, u.id DESC"
+    query += " LIMIT 1"
 
     with connection.cursor() as cursor:
         cursor.execute(query, params)

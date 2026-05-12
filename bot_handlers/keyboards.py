@@ -49,11 +49,8 @@ def get_review_keyboard():
     keyboard = VkKeyboard(one_time=False, inline=False)
     keyboard.add_button(texts.BUTTON_REVIEW_BROWSE, color=VkKeyboardColor.POSITIVE)
     keyboard.add_line()
-    keyboard.add_button(texts.BUTTON_EDIT_PROFILE, color=VkKeyboardColor.PRIMARY)
-    keyboard.add_button(texts.BUTTON_EDIT_ABOUT, color=VkKeyboardColor.PRIMARY)
-    keyboard.add_line()
-    keyboard.add_button(texts.BUTTON_EDIT_GAMES, color=VkKeyboardColor.PRIMARY)
-    keyboard.add_button(texts.BUTTON_EDIT_PHOTO, color=VkKeyboardColor.PRIMARY)
+    keyboard.add_button(texts.BUTTON_EDIT_PROFILE_MENU, color=VkKeyboardColor.PRIMARY)
+    keyboard.add_button(texts.BUTTON_FILTERS, color=VkKeyboardColor.PRIMARY)
     keyboard.add_line()
     if ENABLE_PROFILE_RESET_BUTTON:
         keyboard.add_button(texts.BUTTON_RESET, color=VkKeyboardColor.NEGATIVE)
@@ -61,8 +58,21 @@ def get_review_keyboard():
     return keyboard.get_keyboard()
 
 
-# Создает меню-клавиатуру для редактирования основных полей анкеты.
+# Создает меню разделов редактирования анкеты.
 def get_edit_profile_keyboard():
+    keyboard = VkKeyboard(one_time=False, inline=False)
+    keyboard.add_button(texts.BUTTON_EDIT_PROFILE, color=VkKeyboardColor.PRIMARY)
+    keyboard.add_button(texts.BUTTON_EDIT_ABOUT, color=VkKeyboardColor.PRIMARY)
+    keyboard.add_line()
+    keyboard.add_button(texts.BUTTON_EDIT_GAMES, color=VkKeyboardColor.PRIMARY)
+    keyboard.add_button(texts.BUTTON_EDIT_PHOTO, color=VkKeyboardColor.PRIMARY)
+    keyboard.add_line()
+    keyboard.add_button(texts.BUTTON_BACK, color=VkKeyboardColor.SECONDARY)
+    return keyboard.get_keyboard()
+
+
+# Создает меню-клавиатуру для редактирования основных полей анкеты.
+def get_edit_main_keyboard():
     keyboard = VkKeyboard(one_time=False, inline=False)
     keyboard.add_button(texts.BUTTON_EDIT_NAME, color=VkKeyboardColor.PRIMARY)
     keyboard.add_button(texts.BUTTON_EDIT_AGE, color=VkKeyboardColor.PRIMARY)
@@ -71,6 +81,46 @@ def get_edit_profile_keyboard():
     keyboard.add_button(texts.BUTTON_EDIT_LOOKING, color=VkKeyboardColor.PRIMARY)
     keyboard.add_line()
     keyboard.add_button(texts.BUTTON_EDIT_CITY, color=VkKeyboardColor.PRIMARY)
+    keyboard.add_button(texts.BUTTON_BACK, color=VkKeyboardColor.SECONDARY)
+    return keyboard.get_keyboard()
+
+
+def get_filters_keyboard():
+    keyboard = VkKeyboard(one_time=False, inline=False)
+    keyboard.add_button(texts.BUTTON_FILTER_SORT, color=VkKeyboardColor.PRIMARY)
+    keyboard.add_button(texts.BUTTON_FILTER_AGE, color=VkKeyboardColor.PRIMARY)
+    keyboard.add_line()
+    keyboard.add_button(texts.BUTTON_FILTER_GAME, color=VkKeyboardColor.PRIMARY)
+    keyboard.add_line()
+    keyboard.add_button(texts.BUTTON_BACK, color=VkKeyboardColor.SECONDARY)
+    return keyboard.get_keyboard()
+
+
+def get_filter_sort_keyboard():
+    keyboard = VkKeyboard(one_time=False, inline=False)
+    keyboard.add_button(texts.BUTTON_FILTER_SORT_GAMES, color=VkKeyboardColor.PRIMARY)
+    keyboard.add_button(texts.BUTTON_FILTER_SORT_CITY, color=VkKeyboardColor.PRIMARY)
+    keyboard.add_line()
+    keyboard.add_button(texts.BUTTON_BACK, color=VkKeyboardColor.SECONDARY)
+    return keyboard.get_keyboard()
+
+
+def get_filter_game_keyboard():
+    keyboard = VkKeyboard(one_time=False, inline=False)
+    keyboard.add_button("Dota 2", color=VkKeyboardColor.PRIMARY)
+    keyboard.add_button("CS2", color=VkKeyboardColor.PRIMARY)
+    keyboard.add_line()
+    keyboard.add_button("Minecraft", color=VkKeyboardColor.PRIMARY)
+    keyboard.add_button("MLBB", color=VkKeyboardColor.PRIMARY)
+    keyboard.add_line()
+    keyboard.add_button("Valorant", color=VkKeyboardColor.PRIMARY)
+    keyboard.add_button("PUBG", color=VkKeyboardColor.PRIMARY)
+    keyboard.add_line()
+    keyboard.add_button("Dead by Daylight", color=VkKeyboardColor.PRIMARY)
+    keyboard.add_button("Genshin Impact", color=VkKeyboardColor.PRIMARY)
+    keyboard.add_line()
+    keyboard.add_button(texts.BUTTON_FILTER_ANY_GAME, color=VkKeyboardColor.SECONDARY)
+    keyboard.add_line()
     keyboard.add_button(texts.BUTTON_BACK, color=VkKeyboardColor.SECONDARY)
     return keyboard.get_keyboard()
 
@@ -181,6 +231,12 @@ def get_games_keyboard(user):
 def get_keep_current_keyboard():
     keyboard = VkKeyboard(one_time=False, inline=False)
     keyboard.add_button(texts.BUTTON_KEEP_CURRENT, color=VkKeyboardColor.SECONDARY)
+    return keyboard.get_keyboard()
+
+
+def get_back_keyboard():
+    keyboard = VkKeyboard(one_time=False, inline=False)
+    keyboard.add_button(texts.BUTTON_BACK, color=VkKeyboardColor.SECONDARY)
     return keyboard.get_keyboard()
 
 

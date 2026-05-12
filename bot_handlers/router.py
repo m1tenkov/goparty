@@ -36,6 +36,10 @@ from .constants import (
     STATE_BROWSE,
     STATE_DEACTIVATE_CONFIRM,
     STATE_EDIT_MENU,
+    STATE_FILTERS,
+    STATE_FILTERS_SORT,
+    STATE_FILTERS_AGE,
+    STATE_FILTERS_GAME,
     STATE_GAMES,
     STATE_INCOMING_LIKE,
     STATE_LIKE_MESSAGE,
@@ -56,9 +60,14 @@ from .keyboards import (
     EMPTY_KEYBOARD,
     get_age_registration_keyboard,
     get_browse_keyboard,
+    get_back_keyboard,
     get_city_edit_keyboard,
     get_deactivate_confirm_keyboard,
+    get_edit_main_keyboard,
     get_edit_profile_keyboard,
+    get_filter_game_keyboard,
+    get_filter_sort_keyboard,
+    get_filters_keyboard,
     get_games_keyboard,
     get_gender_edit_keyboard,
     get_incoming_like_keyboard,
@@ -84,6 +93,7 @@ from .utils import (
     extract_photo_payload,
     extract_photo_attachments_from_message,
     fit_message_text,
+    format_filters_message,
     format_games_buttons_message,
     format_games_picker_prompt,
     format_games_summary,
@@ -93,6 +103,7 @@ from .utils import (
     get_pending_like_profile,
     has_pending_likes,
     parse_payload,
+    persist_user_filters,
     reactivate_profile_if_needed,
     save_games_state,
     save_photos_state,
@@ -959,37 +970,53 @@ def handle_review(user, normalized_text, send):
         user["step"] = STATE_DEACTIVATE_CONFIRM
         send(texts.MSG_DEACTIVATE_CONFIRM, keyboard=get_deactivate_confirm_keyboard())
         return
-    if normalized_text == texts.BUTTON_EDIT_PROFILE.lower():
+    if normalized_text == texts.BUTTON_EDIT_PROFILE_MENU.lower():
         user["step"] = STATE_EDIT_MENU
+        user["edit_menu_level"] = "sections"
         send(texts.MSG_WHAT_TO_EDIT, keyboard=get_edit_profile_keyboard())
         return
-    if normalized_text == texts.BUTTON_EDIT_ABOUT.lower():
-        user["step"] = STATE_ABOUT
-        send(texts.MSG_ABOUT_EDIT_PROMPT, keyboard=get_keep_current_keyboard())
-        return
-    if normalized_text == texts.BUTTON_EDIT_GAMES.lower():
-        start_games_flow(user, send, clear_reply_keyboard=True)
-        return
-    if normalized_text == texts.BUTTON_EDIT_PHOTO.lower():
-        user["had_photos_before_edit"] = bool(user.get("photos"))
-        user["step"] = STATE_PHOTO
-        keyboard = get_photo_edit_keyboard() if user.get("had_photos_before_edit") else EMPTY_KEYBOARD
-        send(texts.MSG_SEND_PHOTOS_PROMPT, keyboard=keyboard)
+    if normalized_text == texts.BUTTON_FILTERS.lower():
+        user["step"] = STATE_FILTERS
+        send(format_filters_message(user), keyboard=get_filters_keyboard())
         return
     send(texts.MSG_REVIEW_FALLBACK, keyboard=get_review_keyboard())
 
 # Обрабатывает нажатия кнопок в меню редактирования.
 def handle_edit_menu(user, normalized_text, send):
     vk_profile = user.get("vk_profile") or {}
+    edit_menu_level = user.get("edit_menu_level", "sections")
+    if normalized_text == texts.BUTTON_EDIT_PROFILE.lower():
+        user["edit_menu_level"] = "main_fields"
+        send(texts.MSG_WHAT_TO_EDIT, keyboard=get_edit_main_keyboard())
+        return
+    if normalized_text == texts.BUTTON_EDIT_ABOUT.lower():
+        user.pop("edit_menu_level", None)
+        user["step"] = STATE_ABOUT
+        send(texts.MSG_ABOUT_EDIT_PROMPT, keyboard=get_keep_current_keyboard())
+        return
+    if normalized_text == texts.BUTTON_EDIT_GAMES.lower():
+        user.pop("edit_menu_level", None)
+        start_games_flow(user, send, clear_reply_keyboard=True)
+        return
+    if normalized_text == texts.BUTTON_EDIT_PHOTO.lower():
+        user.pop("edit_menu_level", None)
+        user["had_photos_before_edit"] = bool(user.get("photos"))
+        user["step"] = STATE_PHOTO
+        keyboard = get_photo_edit_keyboard() if user.get("had_photos_before_edit") else EMPTY_KEYBOARD
+        send(texts.MSG_SEND_PHOTOS_PROMPT, keyboard=keyboard)
+        return
     if normalized_text == texts.BUTTON_EDIT_NAME.lower():
+        user.pop("edit_menu_level", None)
         user["step"] = STATE_REG_NAME
         send(texts.MSG_NAME_PROMPT, keyboard=get_name_edit_keyboard(vk_profile.get("name")))
         return
     if normalized_text == texts.BUTTON_EDIT_AGE.lower():
+        user.pop("edit_menu_level", None)
         user["step"] = STATE_REG_AGE
         send(texts.MSG_AGE_PROMPT, keyboard=get_age_edit_keyboard(user.get("age")))
         return
     if normalized_text == texts.BUTTON_EDIT_GENDER.lower():
+        user.pop("edit_menu_level", None)
         user["step"] = STATE_REG_GENDER
         send(
             texts.MSG_GENDER_PROMPT,
@@ -997,17 +1024,126 @@ def handle_edit_menu(user, normalized_text, send):
         )
         return
     if normalized_text == texts.BUTTON_EDIT_LOOKING.lower():
+        user.pop("edit_menu_level", None)
         user["step"] = STATE_REG_LOOKING
         send(texts.MSG_LOOKING_PROMPT, keyboard=get_looking_keyboard())
         return
     if normalized_text == texts.BUTTON_EDIT_CITY.lower():
+        user.pop("edit_menu_level", None)
         user["step"] = STATE_REG_CITY
         send(texts.MSG_CITY_PROMPT, keyboard=get_city_edit_keyboard(vk_profile.get("city")))
         return
     if normalized_text == texts.BUTTON_BACK.lower():
+        if edit_menu_level == "main_fields":
+            user["edit_menu_level"] = "sections"
+            send(texts.MSG_WHAT_TO_EDIT, keyboard=get_edit_profile_keyboard())
+            return
+        user.pop("edit_menu_level", None)
+        user["step"] = STATE_REVIEW
         show_review(user, send)
         return
-    send(texts.MSG_EDIT_MENU_FALLBACK, keyboard=get_edit_profile_keyboard())
+    keyboard = get_edit_main_keyboard() if edit_menu_level == "main_fields" else get_edit_profile_keyboard()
+    send(texts.MSG_EDIT_MENU_FALLBACK, keyboard=keyboard)
+
+
+def handle_filters(user, raw_text, normalized_text, send):
+    game_buttons = {
+        "dota 2": "dota2",
+        "cs2": "cs2",
+        "minecraft": "minecraft",
+        "mlbb": "mlbb",
+        "valorant": "valorant",
+        "pubg": "pubg",
+        "dead by daylight": "dbd",
+        "genshin impact": "genshin",
+    }
+
+    if user.get("step") == STATE_FILTERS_SORT:
+        if normalized_text == texts.BUTTON_BACK.lower():
+            user["step"] = STATE_FILTERS
+            send(format_filters_message(user), keyboard=get_filters_keyboard())
+            return
+        if normalized_text == texts.BUTTON_FILTER_SORT_GAMES.lower():
+            user["filter_sort"] = "games"
+            persist_user_filters(user)
+            user["step"] = STATE_FILTERS
+            send(format_filters_message(user), keyboard=get_filters_keyboard())
+            return
+        if normalized_text == texts.BUTTON_FILTER_SORT_CITY.lower():
+            user["filter_sort"] = "city"
+            persist_user_filters(user)
+            user["step"] = STATE_FILTERS
+            send(format_filters_message(user), keyboard=get_filters_keyboard())
+            return
+        send("Выбери сортировку", keyboard=get_filter_sort_keyboard())
+        return
+
+    if user.get("step") == STATE_FILTERS_AGE:
+        value = raw_text.strip()
+        if normalized_text == texts.BUTTON_BACK.lower():
+            user["step"] = STATE_FILTERS
+            send(format_filters_message(user), keyboard=get_filters_keyboard())
+            return
+        if value == "0":
+            user["filter_age_min"] = None
+            user["filter_age_max"] = None
+            persist_user_filters(user)
+            user["step"] = STATE_FILTERS
+            send(format_filters_message(user), keyboard=get_filters_keyboard())
+            return
+        if "-" in value:
+            left, right = [part.strip() for part in value.split("-", 1)]
+            if left.isdigit() and right.isdigit():
+                age_min = int(left)
+                age_max = int(right)
+                if 14 <= age_min <= age_max <= 99:
+                    user["filter_age_min"] = age_min
+                    user["filter_age_max"] = age_max
+                    persist_user_filters(user)
+                    user["step"] = STATE_FILTERS
+                    send(format_filters_message(user), keyboard=get_filters_keyboard())
+                    return
+        send(texts.MSG_FILTER_AGE_PROMPT, keyboard=get_back_keyboard())
+        return
+
+    if user.get("step") == STATE_FILTERS_GAME:
+        if normalized_text == texts.BUTTON_BACK.lower():
+            user["step"] = STATE_FILTERS
+            send(format_filters_message(user), keyboard=get_filters_keyboard())
+            return
+        if normalized_text == texts.BUTTON_FILTER_ANY_GAME.lower():
+            user["filter_required_game"] = None
+            persist_user_filters(user)
+            user["step"] = STATE_FILTERS
+            send(format_filters_message(user), keyboard=get_filters_keyboard())
+            return
+        selected_game = game_buttons.get(normalized_text)
+        if selected_game:
+            user["filter_required_game"] = selected_game
+            persist_user_filters(user)
+            user["step"] = STATE_FILTERS
+            send(format_filters_message(user), keyboard=get_filters_keyboard())
+            return
+        send(texts.MSG_FILTER_GAME_PROMPT, keyboard=get_filter_game_keyboard())
+        return
+
+    if normalized_text == texts.BUTTON_FILTER_SORT.lower():
+        user["step"] = STATE_FILTERS_SORT
+        send("Выбери сортировку", keyboard=get_filter_sort_keyboard())
+        return
+    if normalized_text == texts.BUTTON_FILTER_AGE.lower():
+        user["step"] = STATE_FILTERS_AGE
+        send(texts.MSG_FILTER_AGE_PROMPT, keyboard=get_back_keyboard())
+        return
+    if normalized_text == texts.BUTTON_FILTER_GAME.lower():
+        user["step"] = STATE_FILTERS_GAME
+        send(texts.MSG_FILTER_GAME_PROMPT, keyboard=get_filter_game_keyboard())
+        return
+    if normalized_text == texts.BUTTON_BACK.lower():
+        user["step"] = STATE_REVIEW
+        show_review(user, send)
+        return
+    send(texts.MSG_FILTERS_FALLBACK, keyboard=get_filters_keyboard())
 
 
 

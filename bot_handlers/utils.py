@@ -9,6 +9,7 @@ from vk_api.upload import VkUpload
 
 from config import BASE_DIR, PHOTO_STORAGE_DIR
 from database import (
+    DEFAULT_FILTERS,
     GAME_CODES,
     GAME_TITLES,
     get_or_create_user,
@@ -21,6 +22,7 @@ from database import (
     save_games,
     save_photos,
     save_profile_fields,
+    save_user_filters,
     save_runtime_state,
 )
 
@@ -31,6 +33,7 @@ from .constants import (
     NO_GAMES_TEXT,
     STATE_ABOUT,
     STATE_BROWSE,
+    STATE_FILTERS,
     STATE_GAMES,
     STATE_PHOTO,
     STATE_PHOTO_APPEND,
@@ -170,6 +173,10 @@ def base_runtime_user(vk_user_id):
         "resume_step": None,
         "suppress_post_match_prompt": False,
         "vk_profile": {},
+        "filter_sort": profile.get("filter_sort", DEFAULT_FILTERS["filter_sort"]),
+        "filter_age_min": profile.get("filter_age_min", DEFAULT_FILTERS["filter_age_min"]),
+        "filter_age_max": profile.get("filter_age_max", DEFAULT_FILTERS["filter_age_max"]),
+        "filter_required_game": profile.get("filter_required_game", DEFAULT_FILTERS["filter_required_game"]),
     }
     for code in GAME_CODES:
         runtime[code] = 1 if code in runtime["games"] else 0
@@ -239,6 +246,18 @@ def persist_runtime_user(vk_user_id):
     )
 
 
+def persist_user_filters(user):
+    save_user_filters(
+        user["vk_user_id"],
+        {
+            "filter_sort": user.get("filter_sort", DEFAULT_FILTERS["filter_sort"]),
+            "filter_age_min": user.get("filter_age_min", DEFAULT_FILTERS["filter_age_min"]),
+            "filter_age_max": user.get("filter_age_max", DEFAULT_FILTERS["filter_age_max"]),
+            "filter_required_game": user.get("filter_required_game", DEFAULT_FILTERS["filter_required_game"]),
+        },
+    )
+
+
 # Возвращает список кодов игр, которые сейчас выбраны в runtime-состоянии.
 def selected_games(user):
     return [code for code in GAME_CODES if user.get(code)]
@@ -279,6 +298,31 @@ def format_games_picker_prompt():
 
 def format_games_buttons_message():
     return texts.MSG_GAMES_BUTTONS
+
+
+def format_filters_message(user):
+    sort_label = texts.BUTTON_FILTER_SORT_GAMES if user.get("filter_sort", "games") == "games" else texts.BUTTON_FILTER_SORT_CITY
+    age_min = user.get("filter_age_min")
+    age_max = user.get("filter_age_max")
+    age_label = f"{age_min}-{age_max}" if age_min is not None and age_max is not None else "Любой"
+    required_game = user.get("filter_required_game")
+    game_titles = {
+        "dota2": "Dota 2",
+        "cs2": "CS2",
+        "minecraft": "Minecraft",
+        "mlbb": "MLBB",
+        "valorant": "Valorant",
+        "pubg": "PUBG",
+        "dbd": "Dead by Daylight",
+        "genshin": "Genshin Impact",
+    }
+    game_label = game_titles.get(required_game, texts.BUTTON_FILTER_ANY_GAME)
+    return (
+        f"{texts.MSG_WHAT_TO_FILTER}\n\n"
+        f"Сортировка: {sort_label}\n"
+        f"Возраст: {age_label}\n"
+        f"Игра: {game_label}"
+    )
 
 
 # Формирует подсказку после загрузки меньше трех фотографий.
@@ -640,7 +684,7 @@ def _candidate_browse_text(candidate, viewing_history=False, history_action=None
 def show_next_candidate(vk_user_id, send):
     user = users[vk_user_id]
     reactivate_profile_if_needed(user)
-    candidate = get_random_candidate(vk_user_id)
+    candidate = get_random_candidate(vk_user_id, user)
     user["step"] = STATE_BROWSE
     user["browse_mode"] = "new"
     user["history_candidate_action"] = None
