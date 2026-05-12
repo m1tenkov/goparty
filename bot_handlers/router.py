@@ -1272,7 +1272,7 @@ def handle_message(vk, vk_user_id, text, attachments, message_id=None, payload=N
             handle_reg_looking(user, normalized_text, send)
             return
         if step == STATE_GAMES:
-            send(texts.MSG_CHOOSE_GAMES_WITH_BUTTONS)
+            show_games_picker(user, send)
             return
         if step == STATE_ABOUT:
             handle_about(user, raw_text, attachments, send)

@@ -545,9 +545,6 @@ def show_games_picker(user, send):
 # Запускает шаг выбора игр и при необходимости скрывает предыдущую reply-клавиатуру.
 def start_games_flow(user, send, clear_reply_keyboard=False):
     user["step"] = STATE_GAMES
-    if clear_reply_keyboard:
-        # A visible service message is more reliable than a zero-width char for hiding VK reply keyboards.
-        send(texts.MSG_CHOOSE_GAMES_WITH_BUTTONS, keyboard=EMPTY_KEYBOARD)
     show_games_picker(user, send)
 
 

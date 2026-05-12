@@ -135,17 +135,18 @@ def get_games_keyboard(user):
         color=VkKeyboardColor.PRIMARY,
         payload={"cmd": "toggle_game", "field": "cs2"},
     )
+    keyboard.add_line()
     keyboard.add_callback_button(
         f"{texts.EMOJI_CHECK if user.get('minecraft') else texts.EMOJI_CROSS} Minecraft",
         color=VkKeyboardColor.PRIMARY,
         payload={"cmd": "toggle_game", "field": "minecraft"},
     )
-    keyboard.add_line()
     keyboard.add_callback_button(
         f"{texts.EMOJI_CHECK if user.get('mlbb') else texts.EMOJI_CROSS} MLBB",
         color=VkKeyboardColor.PRIMARY,
         payload={"cmd": "toggle_game", "field": "mlbb"},
     )
+    keyboard.add_line()
     keyboard.add_callback_button(
         f"{texts.EMOJI_CHECK if user.get('valorant') else texts.EMOJI_CROSS} Valorant",
         color=VkKeyboardColor.PRIMARY,
@@ -167,6 +168,7 @@ def get_games_keyboard(user):
         color=VkKeyboardColor.PRIMARY,
         payload={"cmd": "toggle_game", "field": "genshin"},
     )
+    keyboard.add_line()
     keyboard.add_callback_button(
         texts.BUTTON_GAMES_DONE,
         color=VkKeyboardColor.POSITIVE,
