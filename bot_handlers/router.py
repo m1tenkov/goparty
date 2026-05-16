@@ -2,9 +2,11 @@
 
 import unicodedata
 
-from config import ENABLE_LIKE_NOTIFICATIONS, ENABLE_PROFILE_RESET_BUTTON
+from button_flags import ENABLE_CLEAR_HISTORY_BUTTON, ENABLE_PROFILE_RESET_BUTTON
+from config import ENABLE_LIKE_NOTIFICATIONS
 from database import (
     GAME_CODES,
+    clear_history,
     delete_user_data,
     enqueue_pending_like,
     get_profile_by_vk_user_id,
@@ -1014,6 +1016,10 @@ def handle_review(user, normalized_text, send):
             return
         show_current_or_next_candidate(user["vk_user_id"], send)
         return
+    if ENABLE_CLEAR_HISTORY_BUTTON and normalized_text == texts.BUTTON_CLEAR_HISTORY.lower():
+        clear_history()
+        send(texts.MSG_HISTORY_CLEARED, keyboard=get_review_keyboard())
+        return
     if ENABLE_PROFILE_RESET_BUTTON and normalized_text == texts.BUTTON_RESET.lower():
         user["step"] = STATE_RESET_CONFIRM
         send(
@@ -1157,6 +1163,14 @@ def handle_filters(user, raw_text, normalized_text, send):
             user["step"] = STATE_FILTERS_AGE_MIN
             send(texts.MSG_FILTER_AGE_MIN_PROMPT, keyboard=get_back_keyboard())
             return
+        if value == "0":
+            user["filter_age_min"] = None
+            user["filter_age_max"] = None
+            user.pop("pending_filter_age_min", None)
+            persist_user_filters(user)
+            user["step"] = STATE_FILTERS
+            send(format_filters_message(user), keyboard=get_filters_keyboard())
+            return
         if not raw_text.strip() or not raw_text.strip().isdigit():
             send(texts.MSG_FILTER_AGE_NUMBER, keyboard=get_back_keyboard())
             return
@@ -1197,9 +1211,15 @@ def handle_filters(user, raw_text, normalized_text, send):
         user["step"] = STATE_FILTERS_GAME
         show_filter_games_picker()
         return
-    if normalized_text == texts.BUTTON_BACK.lower():
-        user["step"] = STATE_REVIEW
-        show_review(user, send)
+    if normalized_text == texts.BUTTON_GAMES_DONE.lower():
+        reactivate_profile_if_needed(user)
+        user["browse_mode"] = "new"
+        user["history_candidate_action"] = None
+        user["history_cursor_id"] = None
+        user["history_cursor_created_at"] = None
+        user["current_candidate"] = None
+        user["step"] = STATE_BROWSE
+        show_next_candidate(user["vk_user_id"], send)
         return
     send(texts.MSG_FILTERS_FALLBACK, keyboard=get_filters_keyboard())
 

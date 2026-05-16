@@ -58,7 +58,6 @@ VK_CALLBACK_CONFIRMATION_TOKEN = _env_or_file(
 APP_HOST = os.getenv("APP_HOST", "127.0.0.1")
 APP_PORT = int(os.getenv("APP_PORT", "8000"))
 ENABLE_LIKE_NOTIFICATIONS = os.getenv("ENABLE_LIKE_NOTIFICATIONS", "true").strip().lower() in {"1", "true", "yes", "on"}
-ENABLE_PROFILE_RESET_BUTTON = True
 
 DB_CONFIG = _build_db_config(
     file_name="local_db.json",

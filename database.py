@@ -705,6 +705,18 @@ def delete_user_data(vk_user_id):
     return True
 
 
+def clear_history():
+    with connection.cursor() as cursor:
+        cursor.execute("DELETE FROM matches")
+        cursor.execute("DELETE FROM interactions")
+        cursor.execute("DELETE FROM pending_likes")
+        cursor.execute("ALTER TABLE matches AUTO_INCREMENT = 1")
+        cursor.execute("ALTER TABLE interactions AUTO_INCREMENT = 1")
+        cursor.execute("ALTER TABLE pending_likes AUTO_INCREMENT = 1")
+    connection.commit()
+    return True
+
+
 # Возвращает предыдущий лайкнутый или дизлайкнутый профиль из истории взаимодействий.
 def get_previous_interaction(vk_user_id, before_created_at=None, before_id=None):
     user_row = get_user_row_by_vk_user_id(vk_user_id)

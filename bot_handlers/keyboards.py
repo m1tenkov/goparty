@@ -1,4 +1,4 @@
-from config import ENABLE_PROFILE_RESET_BUTTON
+from button_flags import ENABLE_CLEAR_HISTORY_BUTTON, ENABLE_PROFILE_RESET_BUTTON
 from vk_api.keyboard import VkKeyboard, VkKeyboardColor
 
 from . import texts
@@ -54,6 +54,9 @@ def get_review_keyboard():
     keyboard.add_line()
     if ENABLE_PROFILE_RESET_BUTTON:
         keyboard.add_button(texts.BUTTON_RESET, color=VkKeyboardColor.NEGATIVE)
+    if ENABLE_CLEAR_HISTORY_BUTTON:
+        keyboard.add_button(texts.BUTTON_CLEAR_HISTORY, color=VkKeyboardColor.SECONDARY)
+        keyboard.add_line()
     keyboard.add_button(texts.BUTTON_DEACTIVATE_PROFILE, color=VkKeyboardColor.SECONDARY)
     return keyboard.get_keyboard()
 
@@ -92,7 +95,7 @@ def get_filters_keyboard():
     keyboard.add_line()
     keyboard.add_button(texts.BUTTON_FILTER_GAME, color=VkKeyboardColor.PRIMARY)
     keyboard.add_line()
-    keyboard.add_button(texts.BUTTON_BACK, color=VkKeyboardColor.SECONDARY)
+    keyboard.add_button(texts.BUTTON_GAMES_DONE, color=VkKeyboardColor.POSITIVE)
     return keyboard.get_keyboard()
 
 
@@ -100,8 +103,6 @@ def get_filter_sort_keyboard():
     keyboard = VkKeyboard(one_time=False, inline=False)
     keyboard.add_button(texts.BUTTON_FILTER_SORT_GAMES, color=VkKeyboardColor.PRIMARY)
     keyboard.add_button(texts.BUTTON_FILTER_SORT_CITY, color=VkKeyboardColor.PRIMARY)
-    keyboard.add_line()
-    keyboard.add_button(texts.BUTTON_BACK, color=VkKeyboardColor.SECONDARY)
     return keyboard.get_keyboard()
 
 
