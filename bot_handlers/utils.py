@@ -313,7 +313,7 @@ def format_filter_games_done_message():
 
 
 def format_filters_message(user):
-    sort_label = texts.BUTTON_FILTER_SORT_GAMES if user.get("filter_sort", "games") == "games" else texts.BUTTON_FILTER_SORT_CITY
+    sort_label = texts.MSG_FILTERS_SORT_GAMES if user.get("filter_sort", "games") == "games" else texts.MSG_FILTERS_SORT_CITY
     age_min = user.get("filter_age_min")
     age_max = user.get("filter_age_max")
     age_label = f"{age_min}-{age_max}" if age_min is not None and age_max is not None else texts.MSG_FILTERS_AGE_ANY
