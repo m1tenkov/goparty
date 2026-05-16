@@ -38,7 +38,8 @@ from .constants import (
     STATE_EDIT_MENU,
     STATE_FILTERS,
     STATE_FILTERS_SORT,
-    STATE_FILTERS_AGE,
+    STATE_FILTERS_AGE_MIN,
+    STATE_FILTERS_AGE_MAX,
     STATE_FILTERS_GAME,
     STATE_GAMES,
     STATE_INCOMING_LIKE,
@@ -747,6 +748,57 @@ def handle_message_event(vk, event):
                     return
                 show_review(user, send)
                 return
+        if user.get("step") == STATE_FILTERS_GAME:
+            if cmd == "toggle_filter_game":
+                should_persist = False
+                field = payload.get("field")
+                if field in GAME_CODES:
+                    selected = set(user.get("filter_required_games") or [])
+                    if field in selected:
+                        selected.remove(field)
+                    else:
+                        selected.add(field)
+                    user["filter_required_games"] = [code for code in GAME_CODES if code in selected]
+                    edit_event_message(
+                        vk,
+                        event,
+                        texts.MSG_FILTER_GAMES_BUTTONS,
+                        get_filter_game_keyboard(user),
+                    )
+                answer_event(vk, event)
+                return
+            if cmd == "clear_filter_games":
+                should_persist = False
+                user["filter_required_games"] = []
+                edit_event_message(
+                    vk,
+                    event,
+                    texts.MSG_FILTER_GAMES_BUTTONS,
+                    get_filter_game_keyboard(user),
+                )
+                answer_event(vk, event)
+                return
+            if cmd == "filter_games_done":
+                if is_duplicate_action(user, "filters:games:done"):
+                    answer_event(vk, event)
+                    return
+                persist_user_filters(user)
+                user["step"] = STATE_FILTERS
+                edit_event_message(vk, event, format_filters_message(user), EMPTY_KEYBOARD)
+                answer_event(vk, event)
+
+                def send(message, keyboard=None, attachment=None):
+                    safe_vk_send(
+                        vk,
+                        user_id=vk_user_id,
+                        message=fit_message_text(message),
+                        random_id=0,
+                        keyboard=keyboard or EMPTY_KEYBOARD,
+                        attachment=attachment,
+                    )
+
+                send(format_filters_message(user), keyboard=get_filters_keyboard())
+                return
         answer_event(vk, event)
     finally:
         final_user = users.get(vk_user_id, {})
@@ -1047,17 +1099,6 @@ def handle_edit_menu(user, normalized_text, send):
 
 
 def handle_filters(user, raw_text, normalized_text, send):
-    game_buttons = {
-        "dota 2": "dota2",
-        "cs2": "cs2",
-        "minecraft": "minecraft",
-        "mlbb": "mlbb",
-        "valorant": "valorant",
-        "pubg": "pubg",
-        "dead by daylight": "dbd",
-        "genshin impact": "genshin",
-    }
-
     if user.get("step") == STATE_FILTERS_SORT:
         if normalized_text == texts.BUTTON_BACK.lower():
             user["step"] = STATE_FILTERS
@@ -1075,10 +1116,10 @@ def handle_filters(user, raw_text, normalized_text, send):
             user["step"] = STATE_FILTERS
             send(format_filters_message(user), keyboard=get_filters_keyboard())
             return
-        send("Выбери сортировку", keyboard=get_filter_sort_keyboard())
+        send(texts.MSG_FILTER_SORT_PROMPT, keyboard=get_filter_sort_keyboard())
         return
 
-    if user.get("step") == STATE_FILTERS_AGE:
+    if user.get("step") == STATE_FILTERS_AGE_MIN:
         value = raw_text.strip()
         if normalized_text == texts.BUTTON_BACK.lower():
             user["step"] = STATE_FILTERS
@@ -1091,19 +1132,41 @@ def handle_filters(user, raw_text, normalized_text, send):
             user["step"] = STATE_FILTERS
             send(format_filters_message(user), keyboard=get_filters_keyboard())
             return
-        if "-" in value:
-            left, right = [part.strip() for part in value.split("-", 1)]
-            if left.isdigit() and right.isdigit():
-                age_min = int(left)
-                age_max = int(right)
-                if 14 <= age_min <= age_max <= 99:
-                    user["filter_age_min"] = age_min
-                    user["filter_age_max"] = age_max
-                    persist_user_filters(user)
-                    user["step"] = STATE_FILTERS
-                    send(format_filters_message(user), keyboard=get_filters_keyboard())
-                    return
-        send(texts.MSG_FILTER_AGE_PROMPT, keyboard=get_back_keyboard())
+        if not raw_text.strip() or not raw_text.strip().isdigit():
+            send(texts.MSG_FILTER_AGE_NUMBER, keyboard=get_back_keyboard())
+            return
+        age_min = int(value)
+        if not 14 <= age_min <= 99:
+            send(texts.MSG_FILTER_AGE_NUMBER, keyboard=get_back_keyboard())
+            return
+        user["pending_filter_age_min"] = age_min
+        user["step"] = STATE_FILTERS_AGE_MAX
+        send(texts.MSG_FILTER_AGE_MAX_PROMPT, keyboard=get_back_keyboard())
+        return
+
+    if user.get("step") == STATE_FILTERS_AGE_MAX:
+        value = raw_text.strip()
+        if normalized_text == texts.BUTTON_BACK.lower():
+            user["step"] = STATE_FILTERS_AGE_MIN
+            send(texts.MSG_FILTER_AGE_MIN_PROMPT, keyboard=get_back_keyboard())
+            return
+        if not raw_text.strip() or not raw_text.strip().isdigit():
+            send(texts.MSG_FILTER_AGE_NUMBER, keyboard=get_back_keyboard())
+            return
+        age_max = int(value)
+        age_min = user.get("pending_filter_age_min")
+        if not 14 <= age_max <= 99:
+            send(texts.MSG_FILTER_AGE_NUMBER, keyboard=get_back_keyboard())
+            return
+        if age_min is None or age_max < age_min:
+            send(texts.MSG_FILTER_AGE_MAX_INVALID, keyboard=get_back_keyboard())
+            return
+        user["filter_age_min"] = age_min
+        user["filter_age_max"] = age_max
+        user.pop("pending_filter_age_min", None)
+        persist_user_filters(user)
+        user["step"] = STATE_FILTERS
+        send(format_filters_message(user), keyboard=get_filters_keyboard())
         return
 
     if user.get("step") == STATE_FILTERS_GAME:
@@ -1111,33 +1174,21 @@ def handle_filters(user, raw_text, normalized_text, send):
             user["step"] = STATE_FILTERS
             send(format_filters_message(user), keyboard=get_filters_keyboard())
             return
-        if normalized_text == texts.BUTTON_FILTER_ANY_GAME.lower():
-            user["filter_required_game"] = None
-            persist_user_filters(user)
-            user["step"] = STATE_FILTERS
-            send(format_filters_message(user), keyboard=get_filters_keyboard())
-            return
-        selected_game = game_buttons.get(normalized_text)
-        if selected_game:
-            user["filter_required_game"] = selected_game
-            persist_user_filters(user)
-            user["step"] = STATE_FILTERS
-            send(format_filters_message(user), keyboard=get_filters_keyboard())
-            return
-        send(texts.MSG_FILTER_GAME_PROMPT, keyboard=get_filter_game_keyboard())
+        send(texts.MSG_FILTER_GAME_PROMPT, keyboard=get_filter_game_keyboard(user))
         return
 
     if normalized_text == texts.BUTTON_FILTER_SORT.lower():
         user["step"] = STATE_FILTERS_SORT
-        send("Выбери сортировку", keyboard=get_filter_sort_keyboard())
+        send(texts.MSG_FILTER_SORT_PROMPT, keyboard=get_filter_sort_keyboard())
         return
     if normalized_text == texts.BUTTON_FILTER_AGE.lower():
-        user["step"] = STATE_FILTERS_AGE
-        send(texts.MSG_FILTER_AGE_PROMPT, keyboard=get_back_keyboard())
+        user["step"] = STATE_FILTERS_AGE_MIN
+        user.pop("pending_filter_age_min", None)
+        send(texts.MSG_FILTER_AGE_MIN_PROMPT, keyboard=get_back_keyboard())
         return
     if normalized_text == texts.BUTTON_FILTER_GAME.lower():
         user["step"] = STATE_FILTERS_GAME
-        send(texts.MSG_FILTER_GAME_PROMPT, keyboard=get_filter_game_keyboard())
+        send(texts.MSG_FILTER_GAME_PROMPT, keyboard=get_filter_game_keyboard(user))
         return
     if normalized_text == texts.BUTTON_BACK.lower():
         user["step"] = STATE_REVIEW
@@ -1415,7 +1466,7 @@ def handle_message(vk, vk_user_id, text, attachments, message_id=None, payload=N
         if step == STATE_REVIEW:
             handle_review(user, normalized_text, send)
             return
-        if step in {STATE_FILTERS, STATE_FILTERS_SORT, STATE_FILTERS_AGE, STATE_FILTERS_GAME}:
+        if step in {STATE_FILTERS, STATE_FILTERS_SORT, STATE_FILTERS_AGE_MIN, STATE_FILTERS_AGE_MAX, STATE_FILTERS_GAME}:
             handle_filters(user, raw_text, normalized_text, send)
             return
         if step == STATE_EDIT_MENU:

@@ -176,7 +176,7 @@ def base_runtime_user(vk_user_id):
         "filter_sort": profile.get("filter_sort", DEFAULT_FILTERS["filter_sort"]),
         "filter_age_min": profile.get("filter_age_min", DEFAULT_FILTERS["filter_age_min"]),
         "filter_age_max": profile.get("filter_age_max", DEFAULT_FILTERS["filter_age_max"]),
-        "filter_required_game": profile.get("filter_required_game", DEFAULT_FILTERS["filter_required_game"]),
+        "filter_required_games": list(profile.get("filter_required_games", DEFAULT_FILTERS["filter_required_games"])),
     }
     for code in GAME_CODES:
         runtime[code] = 1 if code in runtime["games"] else 0
@@ -253,7 +253,7 @@ def persist_user_filters(user):
             "filter_sort": user.get("filter_sort", DEFAULT_FILTERS["filter_sort"]),
             "filter_age_min": user.get("filter_age_min", DEFAULT_FILTERS["filter_age_min"]),
             "filter_age_max": user.get("filter_age_max", DEFAULT_FILTERS["filter_age_max"]),
-            "filter_required_game": user.get("filter_required_game", DEFAULT_FILTERS["filter_required_game"]),
+            "filter_required_games": list(user.get("filter_required_games", DEFAULT_FILTERS["filter_required_games"])),
         },
     )
 
@@ -304,8 +304,8 @@ def format_filters_message(user):
     sort_label = texts.BUTTON_FILTER_SORT_GAMES if user.get("filter_sort", "games") == "games" else texts.BUTTON_FILTER_SORT_CITY
     age_min = user.get("filter_age_min")
     age_max = user.get("filter_age_max")
-    age_label = f"{age_min}-{age_max}" if age_min is not None and age_max is not None else "Любой"
-    required_game = user.get("filter_required_game")
+    age_label = f"{age_min}-{age_max}" if age_min is not None and age_max is not None else texts.MSG_FILTERS_AGE_ANY
+    required_games = user.get("filter_required_games") or []
     game_titles = {
         "dota2": "Dota 2",
         "cs2": "CS2",
@@ -316,12 +316,12 @@ def format_filters_message(user):
         "dbd": "Dead by Daylight",
         "genshin": "Genshin Impact",
     }
-    game_label = game_titles.get(required_game, texts.BUTTON_FILTER_ANY_GAME)
+    game_label = ", ".join(game_titles[code] for code in required_games if code in game_titles) or texts.MSG_FILTERS_GAMES_ANY
     return (
         f"{texts.MSG_WHAT_TO_FILTER}\n\n"
-        f"Сортировка: {sort_label}\n"
-        f"Возраст: {age_label}\n"
-        f"Игра: {game_label}"
+        f"{texts.MSG_FILTERS_SORT_LABEL}: {sort_label}\n"
+        f"{texts.MSG_FILTERS_AGE_LABEL}: {age_label}\n"
+        f"{texts.MSG_FILTERS_GAMES_LABEL}: {game_label}"
     )
 
 

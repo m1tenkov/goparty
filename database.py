@@ -104,14 +104,32 @@ def ensure_runtime_schema():
                 sort_mode ENUM('games', 'city') NOT NULL DEFAULT 'games',
                 age_min TINYINT UNSIGNED DEFAULT NULL,
                 age_max TINYINT UNSIGNED DEFAULT NULL,
-                required_game_id INT DEFAULT NULL,
                 updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 PRIMARY KEY (user_id),
-                CONSTRAINT fk_user_filters_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
-                CONSTRAINT fk_user_filters_game FOREIGN KEY (required_game_id) REFERENCES games (id) ON DELETE SET NULL
+                CONSTRAINT fk_user_filters_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
             """
         )
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS user_filter_games (
+                user_id BIGINT(20) UNSIGNED NOT NULL,
+                game_id INT NOT NULL,
+                PRIMARY KEY (user_id, game_id),
+                CONSTRAINT fk_user_filter_games_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+                CONSTRAINT fk_user_filter_games_game FOREIGN KEY (game_id) REFERENCES games (id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+            """
+        )
+        if _column_exists(cursor, "user_filters", "required_game_id"):
+            cursor.execute(
+                """
+                INSERT IGNORE INTO user_filter_games (user_id, game_id)
+                SELECT user_id, required_game_id
+                FROM user_filters
+                WHERE required_game_id IS NOT NULL
+                """
+            )
         if _column_exists(cursor, "user_photos", "photo_token") and not _column_exists(cursor, "user_photos", "photo_path"):
             cursor.execute("ALTER TABLE user_photos RENAME COLUMN photo_token TO photo_path")
         _add_column_if_missing(cursor, "user_photos", "vk_photo_token", "TEXT NULL")
@@ -143,7 +161,7 @@ DEFAULT_FILTERS = {
     "filter_sort": "games",
     "filter_age_min": None,
     "filter_age_max": None,
-    "filter_required_game": None,
+    "filter_required_games": [],
 }
 
 
@@ -233,15 +251,24 @@ def _load_filters(db_user_id):
             SELECT
                 uf.sort_mode,
                 uf.age_min,
-                uf.age_max,
-                g.code AS required_game_code
+                uf.age_max
             FROM user_filters uf
-            LEFT JOIN games g ON g.id = uf.required_game_id
             WHERE uf.user_id = %s
             """,
             (db_user_id,),
         )
         row = cursor.fetchone()
+        cursor.execute(
+            """
+            SELECT g.code
+            FROM user_filter_games ufg
+            JOIN games g ON g.id = ufg.game_id
+            WHERE ufg.user_id = %s
+            ORDER BY g.id
+            """,
+            (db_user_id,),
+        )
+        required_game_codes = [game_row["code"] for game_row in cursor.fetchall() if game_row.get("code") in GAME_CODES]
 
     if not row:
         return dict(DEFAULT_FILTERS)
@@ -252,15 +279,11 @@ def _load_filters(db_user_id):
 
     age_min = row.get("age_min")
     age_max = row.get("age_max")
-    required_game_code = row.get("required_game_code")
-    if required_game_code not in GAME_CODES:
-        required_game_code = None
-
     return {
         "filter_sort": sort_mode,
         "filter_age_min": int(age_min) if age_min is not None else None,
         "filter_age_max": int(age_max) if age_max is not None else None,
-        "filter_required_game": required_game_code,
+        "filter_required_games": required_game_codes,
     }
 
 
@@ -636,33 +659,36 @@ def save_user_filters(vk_user_id, filters):
     sort_mode = filters.get("filter_sort") if filters.get("filter_sort") in {"games", "city"} else DEFAULT_FILTERS["filter_sort"]
     age_min = filters.get("filter_age_min")
     age_max = filters.get("filter_age_max")
-    required_game = filters.get("filter_required_game")
-    required_game_id = None
+    required_games = [code for code in filters.get("filter_required_games", []) if code in GAME_CODES]
 
     with connection.cursor() as cursor:
-        if required_game in GAME_CODES:
-            cursor.execute("SELECT id FROM games WHERE code = %s LIMIT 1", (required_game,))
-            row = cursor.fetchone()
-            required_game_id = row["id"] if row else None
-
         cursor.execute(
             """
-            INSERT INTO user_filters (user_id, sort_mode, age_min, age_max, required_game_id)
-            VALUES (%s, %s, %s, %s, %s)
+            INSERT INTO user_filters (user_id, sort_mode, age_min, age_max)
+            VALUES (%s, %s, %s, %s)
             ON DUPLICATE KEY UPDATE
                 sort_mode = VALUES(sort_mode),
                 age_min = VALUES(age_min),
-                age_max = VALUES(age_max),
-                required_game_id = VALUES(required_game_id)
+                age_max = VALUES(age_max)
             """,
             (
                 user_row["id"],
                 sort_mode,
                 age_min if age_min is not None else None,
                 age_max if age_max is not None else None,
-                required_game_id,
             ),
         )
+        cursor.execute("DELETE FROM user_filter_games WHERE user_id = %s", (user_row["id"],))
+        if required_games:
+            cursor.execute("SELECT id, code FROM games WHERE code IN %s", (tuple(required_games),))
+            rows = cursor.fetchall()
+            game_ids = {row["code"]: row["id"] for row in rows}
+            values = [(user_row["id"], game_ids[code]) for code in required_games if code in game_ids]
+            if values:
+                cursor.executemany(
+                    "INSERT INTO user_filter_games (user_id, game_id) VALUES (%s, %s)",
+                    values,
+                )
     connection.commit()
     return True
 
@@ -812,7 +838,7 @@ def get_random_candidate(vk_user_id, filters=None):
     filter_sort = filters.get("filter_sort", "games")
     filter_age_min = filters.get("filter_age_min")
     filter_age_max = filters.get("filter_age_max")
-    filter_required_game = filters.get("filter_required_game")
+    filter_required_games = [code for code in filters.get("filter_required_games", []) if code in GAME_CODES]
 
     query = """
         SELECT
@@ -882,7 +908,7 @@ def get_random_candidate(vk_user_id, filters=None):
         query += " AND p.age <= %s"
         params.append(int(filter_age_max))
 
-    if filter_required_game in GAME_CODES:
+    for filter_required_game in filter_required_games:
         query += """
           AND EXISTS (
               SELECT 1

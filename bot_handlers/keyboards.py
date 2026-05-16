@@ -105,23 +105,64 @@ def get_filter_sort_keyboard():
     return keyboard.get_keyboard()
 
 
-def get_filter_game_keyboard():
-    keyboard = VkKeyboard(one_time=False, inline=False)
-    keyboard.add_button("Dota 2", color=VkKeyboardColor.PRIMARY)
-    keyboard.add_button("CS2", color=VkKeyboardColor.PRIMARY)
+def get_filter_game_keyboard(user):
+    keyboard = VkKeyboard(one_time=False, inline=True)
+    selected = set(user.get("filter_required_games") or [])
+    keyboard.add_callback_button(
+        f"{texts.EMOJI_CHECK if 'dota2' in selected else texts.EMOJI_CROSS} Dota 2",
+        color=VkKeyboardColor.PRIMARY,
+        payload={"cmd": "toggle_filter_game", "field": "dota2"},
+    )
+    keyboard.add_callback_button(
+        f"{texts.EMOJI_CHECK if 'cs2' in selected else texts.EMOJI_CROSS} CS2",
+        color=VkKeyboardColor.PRIMARY,
+        payload={"cmd": "toggle_filter_game", "field": "cs2"},
+    )
     keyboard.add_line()
-    keyboard.add_button("Minecraft", color=VkKeyboardColor.PRIMARY)
-    keyboard.add_button("MLBB", color=VkKeyboardColor.PRIMARY)
+    keyboard.add_callback_button(
+        f"{texts.EMOJI_CHECK if 'minecraft' in selected else texts.EMOJI_CROSS} Minecraft",
+        color=VkKeyboardColor.PRIMARY,
+        payload={"cmd": "toggle_filter_game", "field": "minecraft"},
+    )
+    keyboard.add_callback_button(
+        f"{texts.EMOJI_CHECK if 'mlbb' in selected else texts.EMOJI_CROSS} MLBB",
+        color=VkKeyboardColor.PRIMARY,
+        payload={"cmd": "toggle_filter_game", "field": "mlbb"},
+    )
     keyboard.add_line()
-    keyboard.add_button("Valorant", color=VkKeyboardColor.PRIMARY)
-    keyboard.add_button("PUBG", color=VkKeyboardColor.PRIMARY)
+    keyboard.add_callback_button(
+        f"{texts.EMOJI_CHECK if 'valorant' in selected else texts.EMOJI_CROSS} Valorant",
+        color=VkKeyboardColor.PRIMARY,
+        payload={"cmd": "toggle_filter_game", "field": "valorant"},
+    )
+    keyboard.add_callback_button(
+        f"{texts.EMOJI_CHECK if 'pubg' in selected else texts.EMOJI_CROSS} PUBG",
+        color=VkKeyboardColor.PRIMARY,
+        payload={"cmd": "toggle_filter_game", "field": "pubg"},
+    )
     keyboard.add_line()
-    keyboard.add_button("Dead by Daylight", color=VkKeyboardColor.PRIMARY)
-    keyboard.add_button("Genshin Impact", color=VkKeyboardColor.PRIMARY)
+    keyboard.add_callback_button(
+        f"{texts.EMOJI_CHECK if 'dbd' in selected else texts.EMOJI_CROSS} Dead by Daylight",
+        color=VkKeyboardColor.PRIMARY,
+        payload={"cmd": "toggle_filter_game", "field": "dbd"},
+    )
+    keyboard.add_callback_button(
+        f"{texts.EMOJI_CHECK if 'genshin' in selected else texts.EMOJI_CROSS} Genshin Impact",
+        color=VkKeyboardColor.PRIMARY,
+        payload={"cmd": "toggle_filter_game", "field": "genshin"},
+    )
     keyboard.add_line()
-    keyboard.add_button(texts.BUTTON_FILTER_ANY_GAME, color=VkKeyboardColor.SECONDARY)
+    keyboard.add_callback_button(
+        texts.BUTTON_FILTER_ANY_GAME,
+        color=VkKeyboardColor.SECONDARY,
+        payload={"cmd": "clear_filter_games"},
+    )
     keyboard.add_line()
-    keyboard.add_button(texts.BUTTON_BACK, color=VkKeyboardColor.SECONDARY)
+    keyboard.add_callback_button(
+        texts.BUTTON_GAMES_DONE,
+        color=VkKeyboardColor.POSITIVE,
+        payload={"cmd": "filter_games_done"},
+    )
     return keyboard.get_keyboard()
 
 
