@@ -300,6 +300,18 @@ def format_games_buttons_message():
     return texts.MSG_GAMES_BUTTONS
 
 
+def format_filter_games_picker_prompt():
+    return texts.MSG_FILTER_GAME_PROMPT
+
+
+def format_filter_games_buttons_message():
+    return texts.MSG_FILTER_GAMES_BUTTONS
+
+
+def format_filter_games_done_message():
+    return texts.MSG_FILTER_GAMES_DONE
+
+
 def format_filters_message(user):
     sort_label = texts.BUTTON_FILTER_SORT_GAMES if user.get("filter_sort", "games") == "games" else texts.BUTTON_FILTER_SORT_CITY
     age_min = user.get("filter_age_min")

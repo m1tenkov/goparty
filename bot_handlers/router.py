@@ -95,6 +95,9 @@ from .utils import (
     extract_photo_attachments_from_message,
     fit_message_text,
     format_filters_message,
+    format_filter_games_buttons_message,
+    format_filter_games_done_message,
+    format_filter_games_picker_prompt,
     format_games_buttons_message,
     format_games_picker_prompt,
     format_games_summary,
@@ -762,7 +765,7 @@ def handle_message_event(vk, event):
                     edit_event_message(
                         vk,
                         event,
-                        texts.MSG_FILTER_GAMES_BUTTONS,
+                        format_filter_games_buttons_message(),
                         get_filter_game_keyboard(user),
                     )
                 answer_event(vk, event)
@@ -773,7 +776,7 @@ def handle_message_event(vk, event):
                 edit_event_message(
                     vk,
                     event,
-                    texts.MSG_FILTER_GAMES_BUTTONS,
+                    format_filter_games_buttons_message(),
                     get_filter_game_keyboard(user),
                 )
                 answer_event(vk, event)
@@ -784,7 +787,7 @@ def handle_message_event(vk, event):
                     return
                 persist_user_filters(user)
                 user["step"] = STATE_FILTERS
-                edit_event_message(vk, event, format_filters_message(user), EMPTY_KEYBOARD)
+                edit_event_message(vk, event, format_filter_games_done_message(), EMPTY_KEYBOARD)
                 answer_event(vk, event)
 
                 def send(message, keyboard=None, attachment=None):
@@ -1099,6 +1102,10 @@ def handle_edit_menu(user, normalized_text, send):
 
 
 def handle_filters(user, raw_text, normalized_text, send):
+    def show_filter_games_picker():
+        send(format_filter_games_picker_prompt(), keyboard=EMPTY_KEYBOARD)
+        send(format_filter_games_buttons_message(), keyboard=get_filter_game_keyboard(user))
+
     if user.get("step") == STATE_FILTERS_SORT:
         if normalized_text == texts.BUTTON_BACK.lower():
             user["step"] = STATE_FILTERS
@@ -1174,7 +1181,7 @@ def handle_filters(user, raw_text, normalized_text, send):
             user["step"] = STATE_FILTERS
             send(format_filters_message(user), keyboard=get_filters_keyboard())
             return
-        send(texts.MSG_FILTER_GAME_PROMPT, keyboard=get_filter_game_keyboard(user))
+        show_filter_games_picker()
         return
 
     if normalized_text == texts.BUTTON_FILTER_SORT.lower():
@@ -1188,7 +1195,7 @@ def handle_filters(user, raw_text, normalized_text, send):
         return
     if normalized_text == texts.BUTTON_FILTER_GAME.lower():
         user["step"] = STATE_FILTERS_GAME
-        send(texts.MSG_FILTER_GAME_PROMPT, keyboard=get_filter_game_keyboard(user))
+        show_filter_games_picker()
         return
     if normalized_text == texts.BUTTON_BACK.lower():
         user["step"] = STATE_REVIEW
