@@ -21,7 +21,37 @@ if DB_CA_PATH:
 
 
 # Подключение к MySQL.
-connection = pymysql.connect(**connection_kwargs)
+class ReconnectingConnection:
+    def __init__(self, **kwargs):
+        self._kwargs = kwargs
+        self._connection = None
+
+    def _connect(self):
+        self._connection = pymysql.connect(**self._kwargs)
+        return self._connection
+
+    def _get_connection(self):
+        if self._connection is None:
+            return self._connect()
+        try:
+            self._connection.ping(reconnect=True)
+        except Exception:
+            self._connect()
+        return self._connection
+
+    def cursor(self):
+        return self._get_connection().cursor()
+
+    def commit(self):
+        return self._get_connection().commit()
+
+    def close(self):
+        if self._connection is not None:
+            self._connection.close()
+            self._connection = None
+
+
+connection = ReconnectingConnection(**connection_kwargs)
 
 
 # Добавляет недостающую колонку в существующую таблицу при обновлении runtime-схемы.

@@ -2,136 +2,105 @@
 
 ## Общее описание
 
-`GoParty` — VK-бот на Python, который работает через `VK Callback API`, хранит анкеты и историю взаимодействий в MySQL и поддерживает восстановление пользовательского сценария через runtime-сессии.
+`GoParty` - VK-бот на Python, работающий через `VK Callback API`. Проект хранит анкеты, игровые интересы, фотографии, фильтры поиска, историю взаимодействий и runtime-состояние пользователей в MySQL.
 
-Ниже описана актуальная структура репозитория и назначение основных файлов.
+Ниже описана актуальная структура репозитория и назначение ключевых модулей.
 
 ## Корень проекта
 
-[app.py](/abs/c:/Projects/VS%20Code/app.py)
-HTTP-точка входа для VK Callback API. Принимает `POST /vk/callback`, проверяет secret и confirmation token, затем передает события в обработчик.
+[app.py](/c:/Projects/VS%20Code/app.py:1)  
+FastAPI-приложение, принимающее `POST /vk/callback` и `GET /health`.
 
-[vk_bot.py](/abs/c:/Projects/VS%20Code/vk_bot.py)
-Создает VK-сессию и объект API для отправки сообщений и вызовов методов VK.
+[event_processing.py](/c:/Projects/VS%20Code/event_processing.py:1)  
+Транспортный слой обработки callback-событий. Разделяет `message_new` и `message_event`, оборачивает вызов прикладной логики и логирует длительность обработки.
 
-[config.py](/abs/c:/Projects/VS%20Code/config.py)
-Загружает конфигурацию из переменных окружения и файлов в `secrets/`. Читает VK-токен, ID группы, feature-флаги и параметры подключения к MySQL, включая optional SSL CA.
+[vk_bot.py](/c:/Projects/VS%20Code/vk_bot.py:1)  
+Создает VK API-клиент для работы с `messages`, `users`, `photos` и загрузкой изображений.
 
-[database.py](/abs/c:/Projects/VS%20Code/database.py)
-Слой доступа к БД. Открывает соединение, поддерживает runtime-схему, загружает и сохраняет профили, игры, фотографии, лайки, pending likes, мэтчи, историю взаимодействий и пользовательские сессии.
+[config.py](/c:/Projects/VS%20Code/config.py:1)  
+Загружает конфигурацию из env и `secrets/`: токен VK, callback-secret, confirmation token, параметры БД, путь к SSL CA и feature-флаги.
 
-[logger.py](/abs/c:/Projects/VS%20Code/logger.py)
-Настраивает обычный лог `logs/bot.log` и структурированный лог действий `logs/actions.jsonl`. Экспортирует `log_action(...)` и `log_error(...)`.
+[database.py](/c:/Projects/VS%20Code/database.py:1)  
+Слой доступа к БД. Отвечает за runtime-миграции схемы, профили, игры, фотографии, лайки, мэтчи, фильтры, историю и пользовательские сессии.
 
-[requirements.txt](/abs/c:/Projects/VS%20Code/requirements.txt)
-Список Python-зависимостей проекта.
+[logger.py](/c:/Projects/VS%20Code/logger.py:1)  
+Настройка технического лога и структурированного журнала действий.
 
-[.gitignore](/abs/c:/Projects/VS%20Code/.gitignore)
-Исключает логи, секреты и локальные артефакты из Git.
+[button_flags.py](/c:/Projects/VS%20Code/button_flags.py:1)  
+Feature-флаги для включения отдельных кнопок, например очистки истории или полного сброса профиля.
 
 ## Папка `bot_handlers`
 
-[bot_handlers/__init__.py](/abs/c:/Projects/VS%20Code/bot_handlers/__init__.py)
-Переэкспортирует публичные обработчики `handle_message` и `handle_message_event`.
+[bot_handlers/router.py](/c:/Projects/VS%20Code/bot_handlers/router.py:1)  
+Главный контроллер диалогов. Здесь живут регистрация, просмотр анкет, история, лайки, жалобы, фильтры, деактивация и сброс анкеты.
 
-[bot_handlers/router.py](/abs/c:/Projects/VS%20Code/bot_handlers/router.py)
-Главный контроллер диалогов. Здесь находятся:
+[bot_handlers/utils.py](/c:/Projects/VS%20Code/bot_handlers/utils.py:1)  
+Вспомогательный runtime-слой: восстановление пользователя, автозаполнение из VK, работа с локальными фото, показ кандидатов, сохранение сессий и фильтров.
 
-- маршрутизация сообщений по `step`;
-- старт и восстановление сценария;
-- сценарии регистрации и редактирования;
-- просмотр анкет и история;
-- входящие лайки;
-- лайк с сообщением;
-- жалобы;
-- деактивация и сброс анкеты;
-- безопасная отправка, редактирование и callback-ответы VK;
-- debounce-защита от повторных действий.
+[bot_handlers/keyboards.py](/c:/Projects/VS%20Code/bot_handlers/keyboards.py:1)  
+Фабрика VK-клавиатур: reply и inline-клавиатуры для регистрации, редактирования, фильтров, просмотра анкет и входящих лайков.
 
-[bot_handlers/utils.py](/abs/c:/Projects/VS%20Code/bot_handlers/utils.py)
-Вспомогательный слой для runtime-логики. Отвечает за:
+[bot_handlers/constants.py](/c:/Projects/VS%20Code/bot_handlers/constants.py:1)  
+Строковые идентификаторы состояний, лимиты текста, debounce-настройки и глобальное runtime-хранилище `users`.
 
-- восстановление пользователя из БД и памяти;
-- сохранение runtime-состояния в `user_sessions`;
-- автозаполнение анкеты данными VK;
-- проверку полноты анкеты;
-- переходы по обязательным шагам;
-- форматирование анкеты;
-- извлечение фото из вложений;
-- показ текущей, новой и исторической анкеты.
+[bot_handlers/texts.py](/c:/Projects/VS%20Code/bot_handlers/texts.py:1)  
+Пользовательские тексты, подписи кнопок, emoji-константы и шаблоны сообщений.
 
-[bot_handlers/constants.py](/abs/c:/Projects/VS%20Code/bot_handlers/constants.py)
-Хранит строковые идентификаторы состояний, лимиты текста, debounce-настройку и глобальное in-memory-хранилище `users`.
-
-[bot_handlers/keyboards.py](/abs/c:/Projects/VS%20Code/bot_handlers/keyboards.py)
-Фабрика VK-клавиатур. Создает reply- и inline-клавиатуры для регистрации, просмотра анкет, входящих лайков, жалоб, подтверждений, редактирования и выбора игр.
-
-[bot_handlers/texts.py](/abs/c:/Projects/VS%20Code/bot_handlers/texts.py)
-Содержит все пользовательские тексты, подписи кнопок, emoji-константы и строковые шаблоны сообщений.
-
-[bot_handlers/text_formatters.py](/abs/c:/Projects/VS%20Code/bot_handlers/text_formatters.py)
-Форматирует итоговые пользовательские сообщения: текст анкеты, сводку по играм, уведомление о лайке, уведомление о мэтче, жалобу в модерацию и короткие done-сообщения.
+[bot_handlers/text_formatters.py](/c:/Projects/VS%20Code/bot_handlers/text_formatters.py:1)  
+Форматирование текста анкеты, лайка, мэтча, жалобы и коротких служебных сообщений.
 
 ## Папка `docs`
 
-[docs/bot_logic_description.md](/abs/c:/Projects/VS%20Code/docs/bot_logic_description.md)
-Подробное текстовое описание актуальной логики бота: старт, состояния, регистрация, просмотр анкет, лайки, мэтчи, жалобы, деактивация, сброс и восстановление сессий.
+[docs/bot_logic_description.md](/c:/Projects/VS%20Code/docs/bot_logic_description.md:1)  
+Подробное описание сценариев и внутренних состояний бота.
 
-[docs/project_structure.md](/abs/c:/Projects/VS%20Code/docs/project_structure.md)
-Этот файл. Описывает актуальную структуру репозитория и назначение основных файлов.
+[docs/database_structure.md](/c:/Projects/VS%20Code/docs/database_structure.md:1)  
+Описание структуры БД, таблиц и их роли в системе.
+
+[docs/fastapi_callback_setup.md](/c:/Projects/VS%20Code/docs/fastapi_callback_setup.md:1)  
+Инструкция по запуску и настройке Callback API.
+
+[docs/project_structure.md](/c:/Projects/VS%20Code/docs/project_structure.md:1)  
+Этот файл.
+
+[docs/user_sessions_session_json.md](/c:/Projects/VS%20Code/docs/user_sessions_session_json.md:1)  
+Описание того, что именно сохраняется в `user_sessions.session_json`.
 
 ## Папка `sql`
 
-[sql/reset_database.sql](/abs/c:/Projects/VS%20Code/sql/reset_database.sql)
-Полностью очищает рабочие таблицы бота, но не удаляет саму схему. Используется для чистого старта тестов.
+[sql/reset_database.sql](/c:/Projects/VS%20Code/sql/reset_database.sql:1)  
+Полная очистка рабочих таблиц.
 
-[sql/reset_history.sql](/abs/c:/Projects/VS%20Code/sql/reset_history.sql)
-Очищает только историю взаимодействий: `matches`, `interactions`, `pending_likes`. Анкеты, фото и игры не трогает.
+[sql/reset_history.sql](/c:/Projects/VS%20Code/sql/reset_history.sql:1)  
+Очистка истории взаимодействий, мэтчей и pending likes без удаления анкет.
 
-[sql/ban_profile.sql](/abs/c:/Projects/VS%20Code/sql/ban_profile.sql)
-Ручной SQL-скрипт модерации для блокировки анкеты по `vk_user_id` с сохранением причины бана и отключением активности профиля.
+[sql/ban_profile.sql](/c:/Projects/VS%20Code/sql/ban_profile.sql:1)  
+Ручной бан анкеты по `vk_user_id`.
 
-[sql/unban_profile.sql](/abs/c:/Projects/VS%20Code/sql/unban_profile.sql)
-Ручной SQL-скрипт для снятия блокировки и повторной активации анкеты.
+[sql/unban_profile.sql](/c:/Projects/VS%20Code/sql/unban_profile.sql:1)  
+Снятие блокировки и повторная активация анкеты.
 
-## Папка `scripts`
+[sql/seed_friend_profiles.sql](/c:/Projects/VS%20Code/sql/seed_friend_profiles.sql:1)  
+Заполнение БД тестовыми профилями.
 
-[scripts/fix_encoding.py](/abs/c:/Projects/VS%20Code/scripts/fix_encoding.py)
-Вспомогательный скрипт для исправления проблем с кодировкой в текстовых файлах проекта.
+## Папка `storage`
 
-## Папка `secrets`
-
-Папка для локальных секретов и конфигурации, которые не должны попадать в репозиторий.
-
-[secrets/token.txt](/abs/c:/Projects/VS%20Code/secrets/token.txt)
-Локальный файл с VK-токеном, используется как fallback, если не задан `VK_BOT_TOKEN`.
-
-`secrets/local_db.json`
-Ожидаемый локальный JSON-файл с параметрами подключения к БД. Может отсутствовать в репозитории и подхватывается `config.py`, если нет env-переменных.
-
-## Папка `logs`
-
-`logs/bot.log`
-Основной технический лог бота с ошибками и предупреждениями.
-
-`logs/actions.jsonl`
-Структурированный JSON Lines-лог действий пользователей и внутренних событий.
+`storage/photos/`  
+Локальное файловое хранилище фотографий пользователей. Новая версия бота сохраняет фото не только как VK token, но и как локальные файлы с повторной загрузкой в сообщения VK при необходимости.
 
 ## Как части проекта работают вместе
 
 1. `config.py` загружает секреты и параметры окружения.
-2. `vk_bot.py` поднимает VK API клиент.
-3. `database.py` подключается к MySQL и проверяет runtime-схему.
-4. `app.py` принимает callback-события VK и передает их в обработчики.
-5. `bot_handlers/router.py` определяет, какой сценарий запустить для пользователя.
-6. `bot_handlers/utils.py` восстанавливает состояние, синхронизирует профиль и помогает показывать анкеты.
-7. `database.py` сохраняет все изменения анкеты и взаимодействий.
-8. `logger.py` пишет технические и структурированные логи.
+2. `app.py` принимает callback-запрос от VK.
+3. `event_processing.py` маршрутизирует тип события.
+4. `router.py` определяет прикладной сценарий по текущему `step`.
+5. `utils.py` восстанавливает runtime-состояние, подтягивает VK defaults и показывает нужный экран.
+6. `database.py` сохраняет анкеты, фильтры, фотографии, лайки, мэтчи и сессии.
+7. `logger.py` фиксирует действия и ошибки.
 
 ## Что важно помнить при дальнейших изменениях
 
-- Если меняется диалоговая логика, в первую очередь нужно смотреть [bot_handlers/router.py](/abs/c:/Projects/VS%20Code/bot_handlers/router.py) и [bot_handlers/utils.py](/abs/c:/Projects/VS%20Code/bot_handlers/utils.py).
-- Если меняются тексты или кнопки, правки обычно находятся в [bot_handlers/texts.py](/abs/c:/Projects/VS%20Code/bot_handlers/texts.py) и [bot_handlers/keyboards.py](/abs/c:/Projects/VS%20Code/bot_handlers/keyboards.py).
-- Если меняется логика хранения профилей, мэтчей, pending likes или runtime-сессий, главный файл — [database.py](/abs/c:/Projects/VS%20Code/database.py).
-- В проекте есть runtime-миграция схемы через `ensure_runtime_schema()`, поэтому новые служебные поля и таблицы нужно согласовывать с этим кодом.
-- Секреты должны оставаться в `secrets/` или в переменных окружения, а не в Git.
+- Если меняется логика сценариев, в первую очередь нужно смотреть [bot_handlers/router.py](/c:/Projects/VS%20Code/bot_handlers/router.py:1) и [bot_handlers/utils.py](/c:/Projects/VS%20Code/bot_handlers/utils.py:1).
+- Если меняются кнопки и тексты, правки обычно находятся в [bot_handlers/keyboards.py](/c:/Projects/VS%20Code/bot_handlers/keyboards.py:1) и [bot_handlers/texts.py](/c:/Projects/VS%20Code/bot_handlers/texts.py:1).
+- Если меняется структура подбора, фильтров или runtime-состояния, главный файл - [database.py](/c:/Projects/VS%20Code/database.py:1).
+- В проекте есть runtime-миграция `ensure_runtime_schema()`, поэтому новые служебные поля и таблицы должны быть согласованы с ней.

@@ -3,6 +3,8 @@ __pycache__/
 *.pyo
 *.bak
 .venv/
+diplom/
+diplom2/
 
 logs/
 logs/*.log
