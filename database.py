@@ -389,24 +389,6 @@ def is_profile_banned(vk_user_id):
 
 
 # Очищает полученные дизлайки после важных изменений анкеты пользователя.
-def clear_received_dislikes(vk_user_id):
-    user_row = get_user_row_by_vk_user_id(vk_user_id)
-    if not user_row:
-        return 0
-
-    with connection.cursor() as cursor:
-        deleted = cursor.execute(
-            """
-            DELETE FROM interactions
-            WHERE to_user_id = %s
-              AND action = 'dislike'
-            """,
-            (user_row["id"],),
-        )
-    connection.commit()
-    return deleted
-
-
 # Загружает ID пользователей, которых текущий пользователь уже лайкнул или дизлайкнул.
 def _load_interacted_target_ids(db_user_id):
     with connection.cursor() as cursor:
@@ -562,8 +544,6 @@ def save_profile_fields(vk_user_id, fields):
 
     user_row = get_or_create_user(vk_user_id)
     db_user_id = user_row["id"]
-    previous_profile = get_profile_by_vk_user_id(vk_user_id) or {}
-
     allowed = {
         key: value
         for key, value in fields.items()
@@ -583,13 +563,6 @@ def save_profile_fields(vk_user_id, fields):
             values,
         )
     connection.commit()
-
-    changed_fields = {
-        key for key, value in allowed.items()
-        if previous_profile.get(key) != value
-    }
-    if changed_fields & {"name", "age", "city", "about", "gender"}:
-        clear_received_dislikes(vk_user_id)
 
     return True
 
@@ -799,9 +772,7 @@ def get_previous_interaction(vk_user_id, before_created_at=None, before_id=None)
 def save_games(vk_user_id, selected_game_codes):
     user_row = get_or_create_user(vk_user_id)
     db_user_id = user_row["id"]
-    previous_profile = get_profile_by_vk_user_id(vk_user_id) or {}
     selected_game_codes = [code for code in selected_game_codes if code in GAME_CODES]
-    previous_games = set(previous_profile.get("games", []))
 
     with connection.cursor() as cursor:
         cursor.execute(
@@ -829,9 +800,6 @@ def save_games(vk_user_id, selected_game_codes):
 
     connection.commit()
 
-    if previous_games != set(selected_game_codes):
-        clear_received_dislikes(vk_user_id)
-
     return True
 
 
@@ -839,7 +807,6 @@ def save_games(vk_user_id, selected_game_codes):
 def save_photos(vk_user_id, photos):
     user_row = get_or_create_user(vk_user_id)
     db_user_id = user_row["id"]
-    previous_profile = get_profile_by_vk_user_id(vk_user_id) or {}
     photos = list(photos[:3])
 
     with connection.cursor() as cursor:
@@ -858,9 +825,6 @@ def save_photos(vk_user_id, photos):
                 ],
             )
     connection.commit()
-
-    if list(previous_profile.get("photos", [])) != photos:
-        clear_received_dislikes(vk_user_id)
 
     return True
 
