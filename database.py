@@ -116,6 +116,7 @@ def ensure_runtime_schema():
         _add_column_if_missing(cursor, "profiles", "delivery_error_code", "VARCHAR(32) DEFAULT NULL")
         _add_column_if_missing(cursor, "profiles", "delivery_error_at", "TIMESTAMP NULL DEFAULT NULL")
         _add_column_if_missing(cursor, "profiles", "games_step_completed", "TINYINT(1) NOT NULL DEFAULT 0")
+        _add_column_if_missing(cursor, "profiles", "uses_microphone", "TINYINT(1) NOT NULL DEFAULT 1")
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS user_sessions (
@@ -134,12 +135,14 @@ def ensure_runtime_schema():
                 sort_mode ENUM('games', 'city') NOT NULL DEFAULT 'games',
                 age_min TINYINT UNSIGNED DEFAULT NULL,
                 age_max TINYINT UNSIGNED DEFAULT NULL,
+                microphone_preference TINYINT(1) DEFAULT NULL,
                 updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 PRIMARY KEY (user_id),
                 CONSTRAINT fk_user_filters_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
             """
         )
+        _add_column_if_missing(cursor, "user_filters", "microphone_preference", "TINYINT(1) DEFAULT NULL")
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS user_filter_games (
@@ -192,6 +195,7 @@ DEFAULT_FILTERS = {
     "filter_age_min": None,
     "filter_age_max": None,
     "filter_required_games": [],
+    "filter_microphone": None,
 }
 
 
@@ -281,7 +285,8 @@ def _load_filters(db_user_id):
             SELECT
                 uf.sort_mode,
                 uf.age_min,
-                uf.age_max
+                uf.age_max,
+                uf.microphone_preference
             FROM user_filters uf
             WHERE uf.user_id = %s
             """,
@@ -314,6 +319,7 @@ def _load_filters(db_user_id):
         "filter_age_min": int(age_min) if age_min is not None else None,
         "filter_age_max": int(age_max) if age_max is not None else None,
         "filter_required_games": required_game_codes,
+        "filter_microphone": int(row["microphone_preference"]) if row.get("microphone_preference") is not None else None,
     }
 
 
@@ -331,6 +337,7 @@ def _build_profile(base_row):
         "about": base_row.get("about"),
         "gender": base_row.get("gender"),
         "looking_for": base_row.get("looking_for"),
+        "uses_microphone": base_row.get("uses_microphone", 1),
         "is_active": base_row.get("is_active", 1),
         "is_banned": base_row.get("is_banned", 0),
         "banned_at": base_row.get("banned_at"),
@@ -365,6 +372,7 @@ def get_profile_by_vk_user_id(vk_user_id):
                 p.about,
                 p.gender,
                 p.looking_for,
+                p.uses_microphone,
                 p.is_active,
                 p.is_banned,
                 p.banned_at,
@@ -547,7 +555,7 @@ def save_profile_fields(vk_user_id, fields):
     allowed = {
         key: value
         for key, value in fields.items()
-        if key in {"name", "age", "city", "about", "gender", "looking_for", "is_active"}
+        if key in {"name", "age", "city", "about", "gender", "looking_for", "uses_microphone", "is_active"}
     }
     if not allowed:
         return False
@@ -663,22 +671,29 @@ def save_user_filters(vk_user_id, filters):
     age_min = filters.get("filter_age_min")
     age_max = filters.get("filter_age_max")
     required_games = [code for code in filters.get("filter_required_games", []) if code in GAME_CODES]
+    filter_microphone = filters.get("filter_microphone")
+    if filter_microphone not in (None, 0, 1, False, True):
+        filter_microphone = DEFAULT_FILTERS["filter_microphone"]
+    if filter_microphone is not None:
+        filter_microphone = int(bool(filter_microphone))
 
     with connection.cursor() as cursor:
         cursor.execute(
             """
-            INSERT INTO user_filters (user_id, sort_mode, age_min, age_max)
-            VALUES (%s, %s, %s, %s)
+            INSERT INTO user_filters (user_id, sort_mode, age_min, age_max, microphone_preference)
+            VALUES (%s, %s, %s, %s, %s)
             ON DUPLICATE KEY UPDATE
                 sort_mode = VALUES(sort_mode),
                 age_min = VALUES(age_min),
-                age_max = VALUES(age_max)
+                age_max = VALUES(age_max),
+                microphone_preference = VALUES(microphone_preference)
             """,
             (
                 user_row["id"],
                 sort_mode,
                 age_min if age_min is not None else None,
                 age_max if age_max is not None else None,
+                filter_microphone,
             ),
         )
         cursor.execute("DELETE FROM user_filter_games WHERE user_id = %s", (user_row["id"],))
@@ -845,6 +860,7 @@ def get_random_candidate(vk_user_id, filters=None):
     filter_age_min = filters.get("filter_age_min")
     filter_age_max = filters.get("filter_age_max")
     filter_required_games = [code for code in filters.get("filter_required_games", []) if code in GAME_CODES]
+    filter_microphone = filters.get("filter_microphone")
 
     query = """
         SELECT
@@ -913,6 +929,10 @@ def get_random_candidate(vk_user_id, filters=None):
     if filter_age_max is not None:
         query += " AND p.age <= %s"
         params.append(int(filter_age_max))
+
+    if filter_microphone in (0, 1, False, True):
+        query += " AND COALESCE(p.uses_microphone, 1) = %s"
+        params.append(int(bool(filter_microphone)))
 
     for filter_required_game in filter_required_games:
         query += """

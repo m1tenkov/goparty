@@ -30,6 +30,13 @@ def get_looking_keyboard():
     return keyboard.get_keyboard()
 
 
+def get_microphone_keyboard():
+    keyboard = VkKeyboard(one_time=True, inline=False)
+    keyboard.add_button(texts.BUTTON_MICROPHONE_YES, color=VkKeyboardColor.PRIMARY)
+    keyboard.add_button(texts.BUTTON_MICROPHONE_NO, color=VkKeyboardColor.PRIMARY)
+    return keyboard.get_keyboard()
+
+
 # Создает клавиатуру, которая показывается, когда пользователь может добавить еще фото.
 def get_photo_more_keyboard():
     keyboard = VkKeyboard(one_time=False, inline=False)
@@ -84,6 +91,8 @@ def get_edit_main_keyboard():
     keyboard.add_button(texts.BUTTON_EDIT_LOOKING, color=VkKeyboardColor.PRIMARY)
     keyboard.add_line()
     keyboard.add_button(texts.BUTTON_EDIT_CITY, color=VkKeyboardColor.PRIMARY)
+    keyboard.add_button(texts.BUTTON_EDIT_MICROPHONE, color=VkKeyboardColor.PRIMARY)
+    keyboard.add_line()
     keyboard.add_button(texts.BUTTON_BACK, color=VkKeyboardColor.SECONDARY)
     return keyboard.get_keyboard()
 
@@ -94,6 +103,8 @@ def get_filters_keyboard():
     keyboard.add_button(texts.BUTTON_FILTER_AGE, color=VkKeyboardColor.PRIMARY)
     keyboard.add_line()
     keyboard.add_button(texts.BUTTON_FILTER_GAME, color=VkKeyboardColor.PRIMARY)
+    keyboard.add_button(texts.BUTTON_FILTER_MICROPHONE, color=VkKeyboardColor.PRIMARY)
+    keyboard.add_line()
     keyboard.add_button(texts.BUTTON_GAMES_DONE, color=VkKeyboardColor.POSITIVE)
     return keyboard.get_keyboard()
 
@@ -102,6 +113,17 @@ def get_filter_sort_keyboard():
     keyboard = VkKeyboard(one_time=False, inline=False)
     keyboard.add_button(texts.BUTTON_FILTER_SORT_GAMES, color=VkKeyboardColor.PRIMARY)
     keyboard.add_button(texts.BUTTON_FILTER_SORT_CITY, color=VkKeyboardColor.PRIMARY)
+    return keyboard.get_keyboard()
+
+
+def get_filter_microphone_keyboard():
+    keyboard = VkKeyboard(one_time=False, inline=False)
+    keyboard.add_button(texts.BUTTON_FILTER_MICROPHONE_ANY, color=VkKeyboardColor.SECONDARY)
+    keyboard.add_line()
+    keyboard.add_button(texts.BUTTON_FILTER_MICROPHONE_YES, color=VkKeyboardColor.PRIMARY)
+    keyboard.add_button(texts.BUTTON_FILTER_MICROPHONE_NO, color=VkKeyboardColor.PRIMARY)
+    keyboard.add_line()
+    keyboard.add_button(texts.BUTTON_BACK, color=VkKeyboardColor.SECONDARY)
     return keyboard.get_keyboard()
 
 

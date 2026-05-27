@@ -42,6 +42,7 @@ from .constants import (
     STATE_REG_CITY,
     STATE_REG_GENDER,
     STATE_REG_LOOKING,
+    STATE_REG_MICROPHONE,
     STATE_REG_NAME,
     STATE_REVIEW,
     VK_MESSAGE_MAX_LENGTH,
@@ -54,6 +55,7 @@ from .keyboards import (
     get_browse_keyboard,
     get_games_keyboard,
     get_gender_keyboard,
+    get_microphone_keyboard,
     get_looking_keyboard,
     get_matches_keyboard,
     get_no_profiles_keyboard,
@@ -152,6 +154,7 @@ def base_runtime_user(vk_user_id):
         "about": profile.get("about"),
         "gender": profile.get("gender"),
         "looking_for": profile.get("looking_for"),
+        "uses_microphone": int(profile.get("uses_microphone", 1)) if profile.get("uses_microphone") is not None else 1,
         "games": list(profile.get("games", [])),
         "photos": list(profile.get("photos", [])),
         "delivery_disabled": profile.get("delivery_disabled", 0),
@@ -177,6 +180,7 @@ def base_runtime_user(vk_user_id):
         "filter_age_min": profile.get("filter_age_min", DEFAULT_FILTERS["filter_age_min"]),
         "filter_age_max": profile.get("filter_age_max", DEFAULT_FILTERS["filter_age_max"]),
         "filter_required_games": list(profile.get("filter_required_games", DEFAULT_FILTERS["filter_required_games"])),
+        "filter_microphone": profile.get("filter_microphone", DEFAULT_FILTERS["filter_microphone"]),
     }
     for code in GAME_CODES:
         runtime[code] = 1 if code in runtime["games"] else 0
@@ -254,6 +258,7 @@ def persist_user_filters(user):
             "filter_age_min": user.get("filter_age_min", DEFAULT_FILTERS["filter_age_min"]),
             "filter_age_max": user.get("filter_age_max", DEFAULT_FILTERS["filter_age_max"]),
             "filter_required_games": list(user.get("filter_required_games", DEFAULT_FILTERS["filter_required_games"])),
+            "filter_microphone": user.get("filter_microphone", DEFAULT_FILTERS["filter_microphone"]),
         },
     )
 
@@ -329,11 +334,19 @@ def format_filters_message(user):
         "genshin": "Genshin Impact",
     }
     game_label = ", ".join(game_titles[code] for code in required_games if code in game_titles) or texts.MSG_FILTERS_GAMES_ANY
+    filter_microphone = user.get("filter_microphone")
+    if filter_microphone in (1, True):
+        microphone_label = texts.MSG_FILTERS_MICROPHONE_YES
+    elif filter_microphone in (0, False):
+        microphone_label = texts.MSG_FILTERS_MICROPHONE_NO
+    else:
+        microphone_label = texts.MSG_FILTERS_MICROPHONE_ANY
     return (
         f"{texts.MSG_WHAT_TO_FILTER}\n\n"
         f"{texts.MSG_FILTERS_SORT_LABEL}: {sort_label}\n"
         f"{texts.MSG_FILTERS_AGE_LABEL}: {age_label}\n"
-        f"{texts.MSG_FILTERS_GAMES_LABEL}: {game_label}"
+        f"{texts.MSG_FILTERS_GAMES_LABEL}: {game_label}\n"
+        f"{texts.MSG_FILTERS_MICROPHONE_LABEL}: {microphone_label}"
     )
 
 
@@ -354,7 +367,8 @@ def format_profile(user, include_review=False):
     city = user.get("city") or texts.LABEL_NO_CITY
     about = user.get("about") or ""
     games_text = ", ".join(games_display(user)) if games_display(user) else texts.LABEL_GAMES_UNSPECIFIED
-    return fit_message_text(format_profile_text(name, age, city, games_text, about, include_review=include_review))
+    microphone_text = "Играю с микрофоном" if user.get("uses_microphone", 1) else "Играю без микрофона"
+    return fit_message_text(format_profile_text(name, age, city, games_text, microphone_text, about, include_review=include_review))
 
 
 # Возвращает True, если строка похожа на локальный путь к фото в хранилище проекта.
@@ -627,6 +641,7 @@ def is_profile_complete(user):
             user.get("gender"),
             user.get("city"),
             user.get("looking_for"),
+            user.get("uses_microphone") in (0, 1, False, True),
             games_display(user),
             user.get("about"),
             user.get("photos"),
@@ -658,6 +673,10 @@ def ask_next_required_field(user, send):
         return True
     if not user.get("games_step_completed", False):
         start_games_flow(user, send)
+        return True
+    if user.get("uses_microphone") not in (0, 1, False, True):
+        user["step"] = STATE_REG_MICROPHONE
+        send(texts.MSG_MICROPHONE_PROMPT, keyboard=get_microphone_keyboard())
         return True
     if not user.get("about"):
         user["step"] = STATE_ABOUT

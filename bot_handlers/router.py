@@ -43,6 +43,7 @@ from .constants import (
     STATE_FILTERS_AGE_MIN,
     STATE_FILTERS_AGE_MAX,
     STATE_FILTERS_GAME,
+    STATE_FILTERS_MICROPHONE,
     STATE_GAMES,
     STATE_INCOMING_LIKE,
     STATE_LIKE_MESSAGE,
@@ -55,6 +56,7 @@ from .constants import (
     STATE_REG_CITY,
     STATE_REG_GENDER,
     STATE_REG_LOOKING,
+    STATE_REG_MICROPHONE,
     STATE_REG_NAME,
     STATE_REVIEW,
     users,
@@ -69,6 +71,7 @@ from .keyboards import (
     get_edit_main_keyboard,
     get_edit_profile_keyboard,
     get_filter_game_keyboard,
+    get_filter_microphone_keyboard,
     get_filter_sort_keyboard,
     get_filters_keyboard,
     get_games_keyboard,
@@ -76,6 +79,7 @@ from .keyboards import (
     get_incoming_like_keyboard,
     get_keep_current_keyboard,
     get_like_message_keyboard,
+    get_microphone_keyboard,
     get_looking_keyboard,
     get_matches_keyboard,
     get_name_edit_keyboard,
@@ -926,6 +930,19 @@ def handle_reg_looking(user, normalized_text, send):
     show_review(user, send)
 
 
+def handle_reg_microphone(user, normalized_text, send):
+    if normalized_text == texts.BUTTON_MICROPHONE_YES.lower():
+        save_text_field(user, "uses_microphone", 1)
+    elif normalized_text == texts.BUTTON_MICROPHONE_NO.lower():
+        save_text_field(user, "uses_microphone", 0)
+    else:
+        send(texts.MSG_MICROPHONE_BUTTON, keyboard=get_microphone_keyboard())
+        return
+    if ask_next_required_field(user, send):
+        return
+    show_review(user, send)
+
+
 # Проверяет и сохраняет текстовое описание «о себе» в анкете.
 def handle_about(user, raw_text, attachments, send):
     has_existing_about = bool(_clean_visible_text(user.get("about")))
@@ -1094,6 +1111,11 @@ def handle_edit_menu(user, normalized_text, send):
         user["step"] = STATE_REG_CITY
         send(texts.MSG_CITY_PROMPT, keyboard=get_city_edit_keyboard(vk_profile.get("city")))
         return
+    if normalized_text == texts.BUTTON_EDIT_MICROPHONE.lower():
+        user.pop("edit_menu_level", None)
+        user["step"] = STATE_REG_MICROPHONE
+        send(texts.MSG_MICROPHONE_PROMPT, keyboard=get_microphone_keyboard())
+        return
     if normalized_text == texts.BUTTON_BACK.lower():
         if edit_menu_level == "main_fields":
             user["edit_menu_level"] = "sections"
@@ -1198,6 +1220,25 @@ def handle_filters(user, raw_text, normalized_text, send):
         show_filter_games_picker()
         return
 
+    if user.get("step") == STATE_FILTERS_MICROPHONE:
+        if normalized_text == texts.BUTTON_BACK.lower():
+            user["step"] = STATE_FILTERS
+            send(format_filters_message(user), keyboard=get_filters_keyboard())
+            return
+        if normalized_text == texts.BUTTON_FILTER_MICROPHONE_ANY.lower():
+            user["filter_microphone"] = None
+        elif normalized_text == texts.BUTTON_FILTER_MICROPHONE_YES.lower():
+            user["filter_microphone"] = 1
+        elif normalized_text == texts.BUTTON_FILTER_MICROPHONE_NO.lower():
+            user["filter_microphone"] = 0
+        else:
+            send(texts.MSG_FILTER_MICROPHONE_PROMPT, keyboard=get_filter_microphone_keyboard())
+            return
+        persist_user_filters(user)
+        user["step"] = STATE_FILTERS
+        send(format_filters_message(user), keyboard=get_filters_keyboard())
+        return
+
     if normalized_text == texts.BUTTON_FILTER_SORT.lower():
         user["step"] = STATE_FILTERS_SORT
         send(texts.MSG_FILTER_SORT_PROMPT, keyboard=get_filter_sort_keyboard())
@@ -1210,6 +1251,10 @@ def handle_filters(user, raw_text, normalized_text, send):
     if normalized_text == texts.BUTTON_FILTER_GAME.lower():
         user["step"] = STATE_FILTERS_GAME
         show_filter_games_picker()
+        return
+    if normalized_text == texts.BUTTON_FILTER_MICROPHONE.lower():
+        user["step"] = STATE_FILTERS_MICROPHONE
+        send(texts.MSG_FILTER_MICROPHONE_PROMPT, keyboard=get_filter_microphone_keyboard())
         return
     if normalized_text == texts.BUTTON_GAMES_DONE.lower():
         reactivate_profile_if_needed(user)
@@ -1475,6 +1520,9 @@ def handle_message(vk, vk_user_id, text, attachments, message_id=None, payload=N
         if step == STATE_REG_LOOKING:
             handle_reg_looking(user, normalized_text, send)
             return
+        if step == STATE_REG_MICROPHONE:
+            handle_reg_microphone(user, normalized_text, send)
+            return
         if step == STATE_GAMES:
             show_games_picker(user, send)
             return
@@ -1493,7 +1541,7 @@ def handle_message(vk, vk_user_id, text, attachments, message_id=None, payload=N
         if step == STATE_REVIEW:
             handle_review(user, normalized_text, send)
             return
-        if step in {STATE_FILTERS, STATE_FILTERS_SORT, STATE_FILTERS_AGE_MIN, STATE_FILTERS_AGE_MAX, STATE_FILTERS_GAME}:
+        if step in {STATE_FILTERS, STATE_FILTERS_SORT, STATE_FILTERS_AGE_MIN, STATE_FILTERS_AGE_MAX, STATE_FILTERS_GAME, STATE_FILTERS_MICROPHONE}:
             handle_filters(user, raw_text, normalized_text, send)
             return
         if step == STATE_EDIT_MENU:
