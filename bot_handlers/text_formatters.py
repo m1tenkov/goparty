@@ -2,14 +2,14 @@ from . import texts
 
 
 # Формирует основной текст анкеты для экранов обзора и просмотра.
-def format_profile_text(name, age, city, games_text, microphone_text, about, include_review=False):
+def format_profile_text(name, age, city, games_text, microphone_text, about, include_review=False, microphone_emoji=None):
     text = texts.TEMPLATE_PROFILE_TEXT.format(
         name=name,
         age=age,
         city=city,
         emoji_games=texts.EMOJI_GAMES,
         games_text=games_text,
-        emoji_microphone=texts.EMOJI_MICROPHONE,
+        emoji_microphone=microphone_emoji or texts.EMOJI_MICROPHONE_ON,
         microphone_text=microphone_text,
         about=about,
     )

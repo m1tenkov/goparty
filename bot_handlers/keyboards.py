@@ -118,11 +118,10 @@ def get_filter_sort_keyboard():
 
 def get_filter_microphone_keyboard():
     keyboard = VkKeyboard(one_time=False, inline=False)
-    keyboard.add_button(texts.BUTTON_FILTER_MICROPHONE_ANY, color=VkKeyboardColor.SECONDARY)
-    keyboard.add_line()
     keyboard.add_button(texts.BUTTON_FILTER_MICROPHONE_YES, color=VkKeyboardColor.PRIMARY)
     keyboard.add_button(texts.BUTTON_FILTER_MICROPHONE_NO, color=VkKeyboardColor.PRIMARY)
     keyboard.add_line()
+    keyboard.add_button(texts.BUTTON_FILTER_MICROPHONE_ANY, color=VkKeyboardColor.SECONDARY)
     keyboard.add_button(texts.BUTTON_BACK, color=VkKeyboardColor.SECONDARY)
     return keyboard.get_keyboard()
 

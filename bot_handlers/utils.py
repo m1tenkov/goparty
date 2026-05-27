@@ -154,7 +154,7 @@ def base_runtime_user(vk_user_id):
         "about": profile.get("about"),
         "gender": profile.get("gender"),
         "looking_for": profile.get("looking_for"),
-        "uses_microphone": int(profile.get("uses_microphone", 1)) if profile.get("uses_microphone") is not None else 1,
+        "uses_microphone": int(profile.get("uses_microphone")) if profile.get("uses_microphone") is not None else None,
         "games": list(profile.get("games", [])),
         "photos": list(profile.get("photos", [])),
         "delivery_disabled": profile.get("delivery_disabled", 0),
@@ -367,8 +367,21 @@ def format_profile(user, include_review=False):
     city = user.get("city") or texts.LABEL_NO_CITY
     about = user.get("about") or ""
     games_text = ", ".join(games_display(user)) if games_display(user) else texts.LABEL_GAMES_UNSPECIFIED
-    microphone_text = "Играю с микрофоном" if user.get("uses_microphone", 1) else "Играю без микрофона"
-    return fit_message_text(format_profile_text(name, age, city, games_text, microphone_text, about, include_review=include_review))
+    uses_microphone = user.get("uses_microphone")
+    microphone_text = "Играю с микрофоном" if uses_microphone in (1, True) else "Играю без микрофона"
+    microphone_emoji = texts.EMOJI_MICROPHONE_ON if uses_microphone in (1, True) else texts.EMOJI_MICROPHONE_OFF
+    return fit_message_text(
+        format_profile_text(
+            name,
+            age,
+            city,
+            games_text,
+            microphone_text,
+            about,
+            include_review=include_review,
+            microphone_emoji=microphone_emoji,
+        )
+    )
 
 
 # Возвращает True, если строка похожа на локальный путь к фото в хранилище проекта.

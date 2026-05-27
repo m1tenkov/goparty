@@ -116,7 +116,8 @@ def ensure_runtime_schema():
         _add_column_if_missing(cursor, "profiles", "delivery_error_code", "VARCHAR(32) DEFAULT NULL")
         _add_column_if_missing(cursor, "profiles", "delivery_error_at", "TIMESTAMP NULL DEFAULT NULL")
         _add_column_if_missing(cursor, "profiles", "games_step_completed", "TINYINT(1) NOT NULL DEFAULT 0")
-        _add_column_if_missing(cursor, "profiles", "uses_microphone", "TINYINT(1) NOT NULL DEFAULT 1")
+        _add_column_if_missing(cursor, "profiles", "uses_microphone", "TINYINT(1) DEFAULT NULL")
+        cursor.execute("ALTER TABLE profiles MODIFY uses_microphone TINYINT(1) DEFAULT NULL")
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS user_sessions (
@@ -337,7 +338,7 @@ def _build_profile(base_row):
         "about": base_row.get("about"),
         "gender": base_row.get("gender"),
         "looking_for": base_row.get("looking_for"),
-        "uses_microphone": base_row.get("uses_microphone", 1),
+        "uses_microphone": base_row.get("uses_microphone"),
         "is_active": base_row.get("is_active", 1),
         "is_banned": base_row.get("is_banned", 0),
         "banned_at": base_row.get("banned_at"),
