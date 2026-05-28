@@ -259,6 +259,7 @@ def persist_user_filters(user):
             "filter_age_max": user.get("filter_age_max", DEFAULT_FILTERS["filter_age_max"]),
             "filter_required_games": list(user.get("filter_required_games", DEFAULT_FILTERS["filter_required_games"])),
             "filter_microphone": user.get("filter_microphone", DEFAULT_FILTERS["filter_microphone"]),
+            "looking_for": user.get("looking_for", DEFAULT_FILTERS["looking_for"]),
         },
     )
 
@@ -318,6 +319,7 @@ def format_filter_games_done_message():
 
 
 def format_filters_message(user):
+    looking_label = LOOKING_LABELS.get(user.get("looking_for"), LOOKING_LABELS[DEFAULT_FILTERS["looking_for"]])
     sort_label = texts.MSG_FILTERS_SORT_GAMES if user.get("filter_sort", "games") == "games" else texts.MSG_FILTERS_SORT_CITY
     age_min = user.get("filter_age_min")
     age_max = user.get("filter_age_max")
@@ -337,12 +339,11 @@ def format_filters_message(user):
     filter_microphone = user.get("filter_microphone")
     if filter_microphone in (1, True):
         microphone_label = texts.MSG_FILTERS_MICROPHONE_YES
-    elif filter_microphone in (0, False):
-        microphone_label = texts.MSG_FILTERS_MICROPHONE_NO
     else:
         microphone_label = texts.MSG_FILTERS_MICROPHONE_ANY
     return (
         f"{texts.MSG_WHAT_TO_FILTER}\n\n"
+        f"{texts.MSG_FILTERS_LOOKING_LABEL}: {looking_label}\n"
         f"{texts.MSG_FILTERS_SORT_LABEL}: {sort_label}\n"
         f"{texts.MSG_FILTERS_AGE_LABEL}: {age_label}\n"
         f"{texts.MSG_FILTERS_GAMES_LABEL}: {game_label}\n"

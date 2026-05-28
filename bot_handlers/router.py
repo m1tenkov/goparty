@@ -39,6 +39,7 @@ from .constants import (
     STATE_DEACTIVATE_CONFIRM,
     STATE_EDIT_MENU,
     STATE_FILTERS,
+    STATE_FILTERS_LOOKING,
     STATE_FILTERS_SORT,
     STATE_FILTERS_AGE_MIN,
     STATE_FILTERS_AGE_MAX,
@@ -917,14 +918,15 @@ def handle_reg_looking(user, normalized_text, send):
         show_review(user, send)
         return
     if normalized_text == texts.BUTTON_LOOKING_MALE.lower():
-        save_text_field(user, "looking_for", "male")
+        user["looking_for"] = "male"
     elif normalized_text == texts.BUTTON_LOOKING_FEMALE.lower():
-        save_text_field(user, "looking_for", "female")
+        user["looking_for"] = "female"
     elif normalized_text == texts.BUTTON_LOOKING_ANY.lower():
-        save_text_field(user, "looking_for", "any")
+        user["looking_for"] = "any"
     else:
         send(texts.MSG_LOOKING_BUTTON, keyboard=get_looking_keyboard())
         return
+    persist_user_filters(user)
     if ask_next_required_field(user, send):
         return
     show_review(user, send)
@@ -1102,11 +1104,6 @@ def handle_edit_menu(user, normalized_text, send):
             keyboard=get_gender_edit_keyboard(GENDER_LABELS.get(vk_profile.get("gender"))),
         )
         return
-    if normalized_text == texts.BUTTON_EDIT_LOOKING.lower():
-        user.pop("edit_menu_level", None)
-        user["step"] = STATE_REG_LOOKING
-        send(texts.MSG_LOOKING_PROMPT, keyboard=get_looking_keyboard())
-        return
     if normalized_text == texts.BUTTON_EDIT_CITY.lower():
         user.pop("edit_menu_level", None)
         user["step"] = STATE_REG_CITY
@@ -1134,6 +1131,25 @@ def handle_filters(user, raw_text, normalized_text, send):
     def show_filter_games_picker():
         send(format_filter_games_picker_prompt(), keyboard=EMPTY_KEYBOARD)
         send(format_filter_games_buttons_message(), keyboard=get_filter_game_keyboard(user))
+
+    if user.get("step") == STATE_FILTERS_LOOKING:
+        if normalized_text == texts.BUTTON_BACK.lower():
+            user["step"] = STATE_FILTERS
+            send(format_filters_message(user), keyboard=get_filters_keyboard())
+            return
+        if normalized_text == texts.BUTTON_LOOKING_MALE.lower():
+            user["looking_for"] = "male"
+        elif normalized_text == texts.BUTTON_LOOKING_FEMALE.lower():
+            user["looking_for"] = "female"
+        elif normalized_text == texts.BUTTON_LOOKING_ANY.lower():
+            user["looking_for"] = "any"
+        else:
+            send(texts.MSG_LOOKING_BUTTON, keyboard=get_looking_keyboard())
+            return
+        persist_user_filters(user)
+        user["step"] = STATE_FILTERS
+        send(format_filters_message(user), keyboard=get_filters_keyboard())
+        return
 
     if user.get("step") == STATE_FILTERS_SORT:
         if normalized_text == texts.BUTTON_BACK.lower():
@@ -1230,8 +1246,6 @@ def handle_filters(user, raw_text, normalized_text, send):
             user["filter_microphone"] = None
         elif normalized_text == texts.BUTTON_FILTER_MICROPHONE_YES.lower():
             user["filter_microphone"] = 1
-        elif normalized_text == texts.BUTTON_FILTER_MICROPHONE_NO.lower():
-            user["filter_microphone"] = 0
         else:
             send(texts.MSG_FILTER_MICROPHONE_PROMPT, keyboard=get_filter_microphone_keyboard())
             return
@@ -1240,6 +1254,10 @@ def handle_filters(user, raw_text, normalized_text, send):
         send(format_filters_message(user), keyboard=get_filters_keyboard())
         return
 
+    if normalized_text == texts.BUTTON_FILTER_LOOKING.lower():
+        user["step"] = STATE_FILTERS_LOOKING
+        send(texts.MSG_LOOKING_PROMPT, keyboard=get_looking_keyboard())
+        return
     if normalized_text == texts.BUTTON_FILTER_SORT.lower():
         user["step"] = STATE_FILTERS_SORT
         send(texts.MSG_FILTER_SORT_PROMPT, keyboard=get_filter_sort_keyboard())
@@ -1285,6 +1303,10 @@ def handle_browse(vk, user, normalized_text, send):
         user["history_cursor_created_at"] = None
         user["current_candidate"] = None
         show_next_candidate(vk_user_id, send)
+        return
+    if user.get("is_active") == 0:
+        name = user.get("name") or texts.LABEL_FRIEND
+        send(f"{name}, с возвращением!", keyboard=get_matches_keyboard())
         return
     if normalized_text == texts.BUTTON_BACK_TO_PREVIOUS.lower():
         show_previous_candidate(vk_user_id, send)
@@ -1542,7 +1564,7 @@ def handle_message(vk, vk_user_id, text, attachments, message_id=None, payload=N
         if step == STATE_REVIEW:
             handle_review(user, normalized_text, send)
             return
-        if step in {STATE_FILTERS, STATE_FILTERS_SORT, STATE_FILTERS_AGE_MIN, STATE_FILTERS_AGE_MAX, STATE_FILTERS_GAME, STATE_FILTERS_MICROPHONE}:
+        if step in {STATE_FILTERS, STATE_FILTERS_LOOKING, STATE_FILTERS_SORT, STATE_FILTERS_AGE_MIN, STATE_FILTERS_AGE_MAX, STATE_FILTERS_GAME, STATE_FILTERS_MICROPHONE}:
             handle_filters(user, raw_text, normalized_text, send)
             return
         if step == STATE_EDIT_MENU:

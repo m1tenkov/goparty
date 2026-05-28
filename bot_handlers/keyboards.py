@@ -92,8 +92,6 @@ def get_edit_main_keyboard():
     keyboard.add_button(texts.BUTTON_EDIT_AGE, color=VkKeyboardColor.PRIMARY)
     keyboard.add_line()
     keyboard.add_button(texts.BUTTON_EDIT_GENDER, color=VkKeyboardColor.PRIMARY)
-    keyboard.add_button(texts.BUTTON_EDIT_LOOKING, color=VkKeyboardColor.PRIMARY)
-    keyboard.add_line()
     keyboard.add_button(texts.BUTTON_EDIT_CITY, color=VkKeyboardColor.PRIMARY)
     keyboard.add_button(texts.BUTTON_EDIT_MICROPHONE, color=VkKeyboardColor.PRIMARY)
     keyboard.add_line()
@@ -103,6 +101,8 @@ def get_edit_main_keyboard():
 
 def get_filters_keyboard():
     keyboard = VkKeyboard(one_time=False, inline=False)
+    keyboard.add_button(texts.BUTTON_FILTER_LOOKING, color=VkKeyboardColor.PRIMARY)
+    keyboard.add_line()
     keyboard.add_button(texts.BUTTON_FILTER_SORT, color=VkKeyboardColor.PRIMARY)
     keyboard.add_button(texts.BUTTON_FILTER_AGE, color=VkKeyboardColor.PRIMARY)
     keyboard.add_line()
@@ -123,8 +123,6 @@ def get_filter_sort_keyboard():
 def get_filter_microphone_keyboard():
     keyboard = VkKeyboard(one_time=False, inline=False)
     keyboard.add_button(texts.BUTTON_FILTER_MICROPHONE_YES, color=VkKeyboardColor.PRIMARY)
-    keyboard.add_button(texts.BUTTON_FILTER_MICROPHONE_NO, color=VkKeyboardColor.PRIMARY)
-    keyboard.add_line()
     keyboard.add_button(texts.BUTTON_FILTER_MICROPHONE_ANY, color=VkKeyboardColor.PRIMARY)
     return keyboard.get_keyboard()
 

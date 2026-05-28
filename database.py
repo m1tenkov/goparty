@@ -133,6 +133,7 @@ def ensure_runtime_schema():
             """
             CREATE TABLE IF NOT EXISTS user_filters (
                 user_id BIGINT(20) UNSIGNED NOT NULL,
+                looking_for ENUM('male', 'female', 'any') DEFAULT NULL,
                 sort_mode ENUM('games', 'city') NOT NULL DEFAULT 'games',
                 age_min TINYINT UNSIGNED DEFAULT NULL,
                 age_max TINYINT UNSIGNED DEFAULT NULL,
@@ -143,7 +144,18 @@ def ensure_runtime_schema():
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
             """
         )
+        _add_column_if_missing(cursor, "user_filters", "looking_for", "ENUM('male', 'female', 'any') DEFAULT NULL")
         _add_column_if_missing(cursor, "user_filters", "microphone_preference", "TINYINT(1) DEFAULT NULL")
+        if _column_exists(cursor, "profiles", "looking_for"):
+            cursor.execute(
+                """
+                INSERT INTO user_filters (user_id, looking_for)
+                SELECT user_id, looking_for
+                FROM profiles
+                WHERE looking_for IS NOT NULL
+                ON DUPLICATE KEY UPDATE looking_for = COALESCE(user_filters.looking_for, VALUES(looking_for))
+                """
+            )
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS user_filter_games (
@@ -192,6 +204,7 @@ GAME_TITLES = {
 }
 
 DEFAULT_FILTERS = {
+    "looking_for": "any",
     "filter_sort": "games",
     "filter_age_min": None,
     "filter_age_max": None,
@@ -284,6 +297,7 @@ def _load_filters(db_user_id):
         cursor.execute(
             """
             SELECT
+                uf.looking_for,
                 uf.sort_mode,
                 uf.age_min,
                 uf.age_max,
@@ -307,20 +321,27 @@ def _load_filters(db_user_id):
         required_game_codes = [game_row["code"] for game_row in cursor.fetchall() if game_row.get("code") in GAME_CODES]
 
     if not row:
-        return dict(DEFAULT_FILTERS)
+        filters = dict(DEFAULT_FILTERS)
+        filters["looking_for"] = None
+        return filters
 
     sort_mode = row.get("sort_mode")
     if sort_mode not in {"games", "city"}:
         sort_mode = DEFAULT_FILTERS["filter_sort"]
 
+    looking_for = row.get("looking_for")
+    if looking_for not in {"male", "female", "any"}:
+        looking_for = DEFAULT_FILTERS["looking_for"]
+
     age_min = row.get("age_min")
     age_max = row.get("age_max")
     return {
+        "looking_for": looking_for,
         "filter_sort": sort_mode,
         "filter_age_min": int(age_min) if age_min is not None else None,
         "filter_age_max": int(age_max) if age_max is not None else None,
         "filter_required_games": required_game_codes,
-        "filter_microphone": int(row["microphone_preference"]) if row.get("microphone_preference") is not None else None,
+        "filter_microphone": 1 if row.get("microphone_preference") in (1, True) else None,
     }
 
 
@@ -372,7 +393,7 @@ def get_profile_by_vk_user_id(vk_user_id):
                 p.city,
                 p.about,
                 p.gender,
-                p.looking_for,
+                uf.looking_for AS looking_for,
                 p.uses_microphone,
                 p.is_active,
                 p.is_banned,
@@ -384,6 +405,7 @@ def get_profile_by_vk_user_id(vk_user_id):
                 p.games_step_completed
             FROM users u
             LEFT JOIN profiles p ON p.user_id = u.id
+            LEFT JOIN user_filters uf ON uf.user_id = u.id
             WHERE u.vk_user_id = %s
             """,
             (db_vk_user_id,),
@@ -556,7 +578,7 @@ def save_profile_fields(vk_user_id, fields):
     allowed = {
         key: value
         for key, value in fields.items()
-        if key in {"name", "age", "city", "about", "gender", "looking_for", "uses_microphone", "is_active"}
+        if key in {"name", "age", "city", "about", "gender", "uses_microphone", "is_active"}
     }
     if not allowed:
         return False
@@ -668,6 +690,7 @@ def save_runtime_state(vk_user_id, state):
 
 def save_user_filters(vk_user_id, filters):
     user_row = get_or_create_user(vk_user_id)
+    looking_for = filters.get("looking_for") if filters.get("looking_for") in {"male", "female", "any"} else DEFAULT_FILTERS["looking_for"]
     sort_mode = filters.get("filter_sort") if filters.get("filter_sort") in {"games", "city"} else DEFAULT_FILTERS["filter_sort"]
     age_min = filters.get("filter_age_min")
     age_max = filters.get("filter_age_max")
@@ -675,15 +698,15 @@ def save_user_filters(vk_user_id, filters):
     filter_microphone = filters.get("filter_microphone")
     if filter_microphone not in (None, 0, 1, False, True):
         filter_microphone = DEFAULT_FILTERS["filter_microphone"]
-    if filter_microphone is not None:
-        filter_microphone = int(bool(filter_microphone))
+    filter_microphone = 1 if filter_microphone in (1, True) else None
 
     with connection.cursor() as cursor:
         cursor.execute(
             """
-            INSERT INTO user_filters (user_id, sort_mode, age_min, age_max, microphone_preference)
-            VALUES (%s, %s, %s, %s, %s)
+            INSERT INTO user_filters (user_id, looking_for, sort_mode, age_min, age_max, microphone_preference)
+            VALUES (%s, %s, %s, %s, %s, %s)
             ON DUPLICATE KEY UPDATE
+                looking_for = VALUES(looking_for),
                 sort_mode = VALUES(sort_mode),
                 age_min = VALUES(age_min),
                 age_max = VALUES(age_max),
@@ -691,6 +714,7 @@ def save_user_filters(vk_user_id, filters):
             """,
             (
                 user_row["id"],
+                looking_for,
                 sort_mode,
                 age_min if age_min is not None else None,
                 age_max if age_max is not None else None,
@@ -863,11 +887,10 @@ def get_random_candidate(vk_user_id, filters=None):
         return None
 
     current_db_user_id = current_profile["db_user_id"]
-    current_gender = current_profile.get("gender")
-    current_looking_for = current_profile.get("looking_for")
     current_age = current_profile.get("age")
     current_city = (current_profile.get("city") or "").strip()
     filters = filters or {}
+    current_looking_for = filters.get("looking_for") or current_profile.get("looking_for") or DEFAULT_FILTERS["looking_for"]
     filter_sort = filters.get("filter_sort", "games")
     filter_age_min = filters.get("filter_age_min")
     filter_age_max = filters.get("filter_age_max")
@@ -899,7 +922,6 @@ def get_random_candidate(vk_user_id, filters=None):
           AND p.age IS NOT NULL
           AND p.city IS NOT NULL
           AND p.gender IS NOT NULL
-          AND p.looking_for IS NOT NULL
           AND p.about IS NOT NULL
           AND NOT EXISTS (
               SELECT 1
@@ -930,10 +952,6 @@ def get_random_candidate(vk_user_id, filters=None):
         query += " AND p.gender = %s"
         params.append(current_looking_for)
 
-    if current_gender in ("male", "female"):
-        query += " AND (p.looking_for = 'any' OR p.looking_for = %s)"
-        params.append(current_gender)
-
     if filter_age_min is not None:
         query += " AND p.age >= %s"
         params.append(int(filter_age_min))
@@ -942,9 +960,9 @@ def get_random_candidate(vk_user_id, filters=None):
         query += " AND p.age <= %s"
         params.append(int(filter_age_max))
 
-    if filter_microphone in (0, 1, False, True):
+    if filter_microphone in (1, True):
         query += " AND COALESCE(p.uses_microphone, 1) = %s"
-        params.append(int(bool(filter_microphone)))
+        params.append(1)
 
     for filter_required_game in filter_required_games:
         query += """
