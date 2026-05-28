@@ -93,8 +93,8 @@ def get_edit_main_keyboard():
     keyboard.add_line()
     keyboard.add_button(texts.BUTTON_EDIT_GENDER, color=VkKeyboardColor.PRIMARY)
     keyboard.add_button(texts.BUTTON_EDIT_CITY, color=VkKeyboardColor.PRIMARY)
-    keyboard.add_button(texts.BUTTON_EDIT_MICROPHONE, color=VkKeyboardColor.PRIMARY)
     keyboard.add_line()
+    keyboard.add_button(texts.BUTTON_EDIT_MICROPHONE, color=VkKeyboardColor.PRIMARY)
     keyboard.add_button(texts.BUTTON_BACK, color=VkKeyboardColor.SECONDARY)
     return keyboard.get_keyboard()
 

@@ -2,9 +2,8 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import PlainTextResponse
 
 from config import APP_HOST, APP_PORT, VK_CALLBACK_CONFIRMATION_TOKEN, VK_CALLBACK_SECRET
-from event_processing import process_callback_payload
+from event_processing import enqueue_callback_payload, start_callback_worker, stop_callback_worker
 from logger import bot_logger, log_action
-from vk_bot import create_vk_api
 
 
 app = FastAPI(title="GoParty VK Bot", version="1.0.0")
@@ -30,7 +29,8 @@ async def vk_callback(request: Request):
         return VK_CALLBACK_CONFIRMATION_TOKEN
 
     if event_type in {"message_new", "message_event"}:
-        process_callback_payload(create_vk_api(), payload)
+        if not enqueue_callback_payload(payload):
+            raise HTTPException(status_code=503, detail="Callback queue is full")
         return "ok"
 
     log_action("callback_ignored", event_type=event_type)
@@ -39,4 +39,10 @@ async def vk_callback(request: Request):
 
 @app.on_event("startup")
 async def on_startup():
+    start_callback_worker()
     bot_logger.info("FastAPI callback app started on %s:%s", APP_HOST, APP_PORT)
+
+
+@app.on_event("shutdown")
+async def on_shutdown():
+    stop_callback_worker()

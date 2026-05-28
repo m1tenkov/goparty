@@ -57,6 +57,7 @@ VK_CALLBACK_CONFIRMATION_TOKEN = _env_or_file(
 )
 APP_HOST = os.getenv("APP_HOST", "127.0.0.1")
 APP_PORT = int(os.getenv("APP_PORT", "8000"))
+CALLBACK_QUEUE_MAXSIZE = int(os.getenv("CALLBACK_QUEUE_MAXSIZE", "1000"))
 ENABLE_LIKE_NOTIFICATIONS = os.getenv("ENABLE_LIKE_NOTIFICATIONS", "true").strip().lower() in {"1", "true", "yes", "on"}
 
 DB_CONFIG = _build_db_config(
