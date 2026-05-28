@@ -1,4 +1,4 @@
-from button_flags import ENABLE_CLEAR_HISTORY_BUTTON, ENABLE_PROFILE_RESET_BUTTON
+from button_flags import can_clear_history, can_reset_profile
 from vk_api.keyboard import VkKeyboard, VkKeyboardColor
 
 from . import texts
@@ -52,18 +52,22 @@ def get_photo_edit_keyboard():
 
 
 # Создает основную клавиатуру обзора для заполненной анкеты.
-def get_review_keyboard():
+def get_review_keyboard(user=None):
     keyboard = VkKeyboard(one_time=False, inline=False)
+    vk_user_id = (user or {}).get("vk_user_id")
     keyboard.add_button(texts.BUTTON_REVIEW_BROWSE, color=VkKeyboardColor.POSITIVE)
     keyboard.add_line()
     keyboard.add_button(texts.BUTTON_EDIT_PROFILE_MENU, color=VkKeyboardColor.PRIMARY)
     keyboard.add_button(texts.BUTTON_FILTERS, color=VkKeyboardColor.PRIMARY)
     keyboard.add_line()
     keyboard.add_button(texts.BUTTON_DEACTIVATE_PROFILE, color=VkKeyboardColor.SECONDARY)
-    keyboard.add_line()
-    if ENABLE_PROFILE_RESET_BUTTON:
+    show_reset_button = can_reset_profile(vk_user_id)
+    show_clear_history_button = can_clear_history(vk_user_id)
+    if show_reset_button or show_clear_history_button:
+        keyboard.add_line()
+    if show_reset_button:
         keyboard.add_button(texts.BUTTON_RESET, color=VkKeyboardColor.NEGATIVE)
-    if ENABLE_CLEAR_HISTORY_BUTTON:
+    if show_clear_history_button:
         keyboard.add_button(texts.BUTTON_CLEAR_HISTORY, color=VkKeyboardColor.NEGATIVE)
     return keyboard.get_keyboard()
 
@@ -121,8 +125,7 @@ def get_filter_microphone_keyboard():
     keyboard.add_button(texts.BUTTON_FILTER_MICROPHONE_YES, color=VkKeyboardColor.PRIMARY)
     keyboard.add_button(texts.BUTTON_FILTER_MICROPHONE_NO, color=VkKeyboardColor.PRIMARY)
     keyboard.add_line()
-    keyboard.add_button(texts.BUTTON_FILTER_MICROPHONE_ANY, color=VkKeyboardColor.SECONDARY)
-    keyboard.add_button(texts.BUTTON_BACK, color=VkKeyboardColor.SECONDARY)
+    keyboard.add_button(texts.BUTTON_FILTER_MICROPHONE_ANY, color=VkKeyboardColor.PRIMARY)
     return keyboard.get_keyboard()
 
 

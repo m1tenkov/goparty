@@ -2,11 +2,11 @@
 
 import unicodedata
 
-from button_flags import ENABLE_CLEAR_HISTORY_BUTTON, ENABLE_PROFILE_RESET_BUTTON
+from button_flags import can_clear_history, can_reset_profile
 from config import ENABLE_LIKE_NOTIFICATIONS
 from database import (
     GAME_CODES,
-    clear_history,
+    clear_user_history,
     delete_user_data,
     enqueue_pending_like,
     get_profile_by_vk_user_id,
@@ -1033,11 +1033,12 @@ def handle_review(user, normalized_text, send):
             return
         show_current_or_next_candidate(user["vk_user_id"], send)
         return
-    if ENABLE_CLEAR_HISTORY_BUTTON and normalized_text == texts.BUTTON_CLEAR_HISTORY.lower():
-        clear_history()
-        send(texts.MSG_HISTORY_CLEARED, keyboard=get_review_keyboard())
+    vk_user_id = user["vk_user_id"]
+    if can_clear_history(vk_user_id) and normalized_text == texts.BUTTON_CLEAR_HISTORY.lower():
+        clear_user_history(vk_user_id)
+        send(texts.MSG_HISTORY_CLEARED, keyboard=get_review_keyboard(user))
         return
-    if ENABLE_PROFILE_RESET_BUTTON and normalized_text == texts.BUTTON_RESET.lower():
+    if can_reset_profile(vk_user_id) and normalized_text == texts.BUTTON_RESET.lower():
         user["step"] = STATE_RESET_CONFIRM
         send(
             texts.MSG_RESET_CONFIRM,
@@ -1057,7 +1058,7 @@ def handle_review(user, normalized_text, send):
         user["step"] = STATE_FILTERS
         send(format_filters_message(user), keyboard=get_filters_keyboard())
         return
-    send(texts.MSG_REVIEW_FALLBACK, keyboard=get_review_keyboard())
+    send(texts.MSG_REVIEW_FALLBACK, keyboard=get_review_keyboard(user))
 
 # Обрабатывает нажатия кнопок в меню редактирования.
 def handle_edit_menu(user, normalized_text, send):
@@ -1434,7 +1435,7 @@ def handle_reset_confirm(vk, user, normalized_text, send):
     if normalized_text == texts.BUTTON_BACK.lower():
         show_review(user, send)
         return
-    if ENABLE_PROFILE_RESET_BUTTON and normalized_text == texts.BUTTON_RESET.lower():
+    if can_reset_profile(user["vk_user_id"]) and normalized_text == texts.BUTTON_RESET.lower():
         vk_user_id = user["vk_user_id"]
         delete_local_photo_files(user.get("photos", []))
         delete_user_data(vk_user_id)

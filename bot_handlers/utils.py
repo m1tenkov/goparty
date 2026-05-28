@@ -711,7 +711,7 @@ def show_review(user, send):
     user["history_cursor_created_at"] = None
     send(
         format_profile(user, include_review=True),
-        keyboard=get_review_keyboard(),
+        keyboard=get_review_keyboard(user),
         attachment=build_photo_attachment(user),
     )
 

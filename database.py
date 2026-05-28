@@ -736,6 +736,17 @@ def clear_history():
     return True
 
 
+def clear_user_history(vk_user_id):
+    user_row = get_user_row_by_vk_user_id(vk_user_id)
+    if not user_row:
+        return False
+
+    with connection.cursor() as cursor:
+        cursor.execute("DELETE FROM interactions WHERE from_user_id = %s", (user_row["id"],))
+    connection.commit()
+    return True
+
+
 # Возвращает предыдущий лайкнутый или дизлайкнутый профиль из истории взаимодействий.
 def get_previous_interaction(vk_user_id, before_created_at=None, before_id=None):
     user_row = get_user_row_by_vk_user_id(vk_user_id)
