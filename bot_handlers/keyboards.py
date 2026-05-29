@@ -102,13 +102,12 @@ def get_edit_main_keyboard():
 def get_filters_keyboard():
     keyboard = VkKeyboard(one_time=False, inline=False)
     keyboard.add_button(texts.BUTTON_FILTER_LOOKING, color=VkKeyboardColor.PRIMARY)
-    keyboard.add_line()
     keyboard.add_button(texts.BUTTON_FILTER_SORT, color=VkKeyboardColor.PRIMARY)
+    keyboard.add_line()
     keyboard.add_button(texts.BUTTON_FILTER_AGE, color=VkKeyboardColor.PRIMARY)
-    keyboard.add_line()
     keyboard.add_button(texts.BUTTON_FILTER_GAME, color=VkKeyboardColor.PRIMARY)
-    keyboard.add_button(texts.BUTTON_FILTER_MICROPHONE, color=VkKeyboardColor.PRIMARY)
     keyboard.add_line()
+    keyboard.add_button(texts.BUTTON_FILTER_MICROPHONE, color=VkKeyboardColor.PRIMARY)
     keyboard.add_button(texts.BUTTON_GAMES_DONE, color=VkKeyboardColor.POSITIVE)
     return keyboard.get_keyboard()
 
