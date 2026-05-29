@@ -167,15 +167,6 @@ def ensure_runtime_schema():
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
             """
         )
-        if _column_exists(cursor, "user_filters", "required_game_id"):
-            cursor.execute(
-                """
-                INSERT IGNORE INTO user_filter_games (user_id, game_id)
-                SELECT user_id, required_game_id
-                FROM user_filters
-                WHERE required_game_id IS NOT NULL
-                """
-            )
         if _column_exists(cursor, "user_photos", "photo_token") and not _column_exists(cursor, "user_photos", "photo_path"):
             cursor.execute("ALTER TABLE user_photos RENAME COLUMN photo_token TO photo_path")
         _add_column_if_missing(cursor, "user_photos", "vk_photo_token", "TEXT NULL")
