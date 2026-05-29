@@ -1454,6 +1454,9 @@ def handle_deactivate_confirm(user, normalized_text, send):
 
 # Обрабатывает подтверждение или отмену полного сброса анкеты.
 def handle_reset_confirm(vk, user, normalized_text, send):
+    if not can_reset_profile(user["vk_user_id"]):
+        show_review(user, send)
+        return
     if normalized_text == texts.BUTTON_BACK.lower():
         show_review(user, send)
         return
