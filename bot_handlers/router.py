@@ -119,6 +119,7 @@ from .utils import (
     save_games_state,
     save_photos_state,
     save_text_field,
+    selected_games,
     persist_runtime_user,
     set_vk_transport,
     show_current_or_next_candidate,
@@ -557,6 +558,7 @@ def handle_like_message_input(vk, user, raw_text, attachments, send):
         resume_after_like_message(user, send)
         return
     resolve_pending_like(user["vk_user_id"], target_vk_user_id, "like")
+    should_notify_like = enqueue_pending_like(user["vk_user_id"], target_vk_user_id, message_text)
     log_action("interaction_saved", vk_user_id=user["vk_user_id"], target_vk_user_id=target_vk_user_id, interaction_type="like_message", matched=result.get("matched"))
 
     liker_profile = get_profile_by_vk_user_id(user["vk_user_id"]) or user
@@ -577,7 +579,7 @@ def handle_like_message_input(vk, user, raw_text, attachments, send):
         resume_after_like_message(user, send)
         return
 
-    if enqueue_pending_like(user["vk_user_id"], target_vk_user_id, message_text):
+    if should_notify_like:
         if ENABLE_LIKE_NOTIFICATIONS:
             send_like_notification(vk, target_vk_user_id, liker_profile)
 
@@ -738,8 +740,16 @@ def handle_message_event(vk, event):
                 if is_duplicate_action(user, "games:done"):
                     answer_event(vk, event)
                     return
+                if not selected_games(user):
+                    edit_event_message(
+                        vk,
+                        event,
+                        format_games_buttons_message(),
+                        get_games_keyboard(user),
+                    )
+                    answer_event(vk, event)
+                    return
                 user["step"] = None
-                user["games_step_completed"] = True
                 save_games_state(user)
                 edit_event_message(vk, event, format_games_summary(user), EMPTY_KEYBOARD)
                 answer_event(vk, event)

@@ -16,7 +16,6 @@
 {
   "step": "STATE_BROWSE",
   "current_candidate": null,
-  "games_step_completed": true,
   "browse_mode": "new",
   "history_candidate_action": null,
   "history_cursor_id": null,

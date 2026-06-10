@@ -131,7 +131,7 @@ def ensure_runtime_schema():
         _add_column_if_missing(cursor, "profiles", "delivery_disabled", "TINYINT(1) NOT NULL DEFAULT 0")
         _add_column_if_missing(cursor, "profiles", "delivery_error_code", "VARCHAR(32) DEFAULT NULL")
         _add_column_if_missing(cursor, "profiles", "delivery_error_at", "TIMESTAMP NULL DEFAULT NULL")
-        _add_column_if_missing(cursor, "profiles", "games_step_completed", "TINYINT(1) NOT NULL DEFAULT 0")
+        _drop_column_if_exists(cursor, "profiles", "games_step_completed")
         _add_column_if_missing(cursor, "profiles", "uses_microphone", "TINYINT(1) DEFAULT NULL")
         cursor.execute("ALTER TABLE profiles MODIFY uses_microphone TINYINT(1) DEFAULT NULL")
         cursor.execute(
@@ -375,7 +375,6 @@ def _build_profile(base_row):
         "delivery_disabled": base_row.get("delivery_disabled", 0),
         "delivery_error_code": base_row.get("delivery_error_code"),
         "delivery_error_at": base_row.get("delivery_error_at"),
-        "games_step_completed": base_row.get("games_step_completed", 0),
         "games": _load_game_codes(base_row["db_user_id"]),
         "photos": _load_photos(base_row["db_user_id"]),
     }
@@ -409,8 +408,7 @@ def get_profile_by_vk_user_id(vk_user_id):
                 p.ban_reason,
                 p.delivery_disabled,
                 p.delivery_error_code,
-                p.delivery_error_at,
-                p.games_step_completed
+                p.delivery_error_at
             FROM users u
             LEFT JOIN profiles p ON p.user_id = u.id
             LEFT JOIN user_filters uf ON uf.user_id = u.id
@@ -820,14 +818,6 @@ def save_games(vk_user_id, selected_game_codes):
     selected_game_codes = [code for code in selected_game_codes if code in GAME_CODES]
 
     with connection.cursor() as cursor:
-        cursor.execute(
-            """
-            INSERT INTO profiles (user_id, games_step_completed)
-            VALUES (%s, 1)
-            ON DUPLICATE KEY UPDATE games_step_completed = VALUES(games_step_completed)
-            """,
-            (db_user_id,),
-        )
         cursor.execute("DELETE FROM user_games WHERE user_id = %s", (db_user_id,))
 
         if selected_game_codes:

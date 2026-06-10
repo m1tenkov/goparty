@@ -162,7 +162,6 @@ def base_runtime_user(vk_user_id):
         "delivery_error_at": profile.get("delivery_error_at"),
         "step": None,
         "current_candidate": None,
-        "games_step_completed": bool(profile.get("games_step_completed", 0)),
         "browse_mode": "new",
         "history_candidate_action": None,
         "history_cursor_id": None,
@@ -196,7 +195,6 @@ def ensure_runtime_user(vk, vk_user_id):
     for source in (persisted, existing):
         runtime["step"] = source.get("step", runtime["step"])
         runtime["current_candidate"] = source.get("current_candidate", runtime["current_candidate"])
-        runtime["games_step_completed"] = source.get("games_step_completed", runtime["games_step_completed"])
         runtime["browse_mode"] = source.get("browse_mode", runtime["browse_mode"])
         runtime["history_candidate_action"] = source.get("history_candidate_action", runtime["history_candidate_action"])
         runtime["history_cursor_id"] = source.get("history_cursor_id", runtime["history_cursor_id"])
@@ -233,7 +231,6 @@ def persist_runtime_user(vk_user_id):
         {
             "step": user.get("step"),
             "current_candidate": user.get("current_candidate"),
-            "games_step_completed": user.get("games_step_completed", False),
             "browse_mode": user.get("browse_mode", "new"),
             "history_candidate_action": user.get("history_candidate_action"),
             "history_cursor_id": user.get("history_cursor_id"),
@@ -656,7 +653,7 @@ def is_profile_complete(user):
             user.get("city"),
             user.get("looking_for"),
             user.get("uses_microphone") in (0, 1, False, True),
-            games_display(user),
+            selected_games(user),
             user.get("about"),
             user.get("photos"),
         ]
@@ -685,7 +682,7 @@ def ask_next_required_field(user, send):
         user["step"] = STATE_REG_LOOKING
         send(texts.MSG_LOOKING_PROMPT, keyboard=get_looking_keyboard())
         return True
-    if not user.get("games_step_completed", False):
+    if not selected_games(user):
         start_games_flow(user, send)
         return True
     if user.get("uses_microphone") not in (0, 1, False, True):

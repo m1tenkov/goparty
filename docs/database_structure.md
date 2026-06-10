@@ -30,7 +30,6 @@
 - `delivery_disabled`
 - `delivery_error_code`
 - `delivery_error_at`
-- `games_step_completed`
 - `updated_at`
 
 Поле `looking_for` не хранится в `profiles`, чтобы не дублировать настройки поиска. Оно находится в `user_filters`.

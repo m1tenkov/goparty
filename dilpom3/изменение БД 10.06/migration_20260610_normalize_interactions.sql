@@ -143,6 +143,23 @@ PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
+SET @sql = (
+    SELECT IF(
+        EXISTS (
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_schema = DATABASE()
+              AND table_name = 'profiles'
+              AND column_name = 'games_step_completed'
+        ),
+        'ALTER TABLE profiles DROP COLUMN games_step_completed',
+        'SELECT ''profiles.games_step_completed does not exist'' AS status'
+    )
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 SELECT
     table_name
 FROM information_schema.tables
@@ -155,3 +172,10 @@ FROM information_schema.columns
 WHERE table_schema = DATABASE()
   AND table_name = 'interactions'
   AND column_name = 'like_message';
+
+SELECT
+    column_name
+FROM information_schema.columns
+WHERE table_schema = DATABASE()
+  AND table_name = 'profiles'
+  AND column_name = 'games_step_completed';
