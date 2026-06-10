@@ -405,7 +405,7 @@ def send_like_notification(vk, target_vk_user_id, liker_profile):
         message=fit_message_text(message),
         random_id=0,
         keyboard=get_incoming_like_keyboard(),
-        attachment=build_photo_attachment(vk, liker_profile),
+        attachment=build_photo_attachment(vk, liker_profile, peer_id=target_vk_user_id),
     ):
         mark_pending_like_notified(target_vk_user_id, liker_profile["vk_user_id"])
 
@@ -430,7 +430,7 @@ def send_match_notification(vk, recipient_vk_user_id, other_profile, like_messag
         message=fit_message_text(message),
         random_id=0,
         keyboard=get_matches_keyboard(),
-        attachment=build_photo_attachment(vk, other_profile),
+        attachment=build_photo_attachment(vk, other_profile, peer_id=recipient_vk_user_id),
     )
 
 
@@ -446,7 +446,7 @@ def repeat_incoming_like_prompt(user, send):
     send(
         message,
         keyboard=get_incoming_like_keyboard(),
-        attachment=build_photo_attachment(vk, liker_profile),
+        attachment=build_photo_attachment(vk, liker_profile, peer_id=user.get("vk_user_id")),
     )
 
 
@@ -473,7 +473,7 @@ def send_report_to_moderation(vk, reporter_user, candidate_profile, reason_text)
             )
         ),
         random_id=0,
-        attachment=build_photo_attachment(vk, candidate_profile),
+        attachment=build_photo_attachment(vk, candidate_profile, peer_id=report_chat_peer_id),
     )
 
 

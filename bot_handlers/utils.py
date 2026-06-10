@@ -563,6 +563,7 @@ def extract_photo_attachments_from_message(vk, vk_user_id, message_id):
 def build_photo_attachment(vk_or_profile, profile=None, peer_id=None):
     vk = vk_or_profile if profile is not None else _vk_api_method
     profile = profile or vk_or_profile
+    upload_peer_id = peer_id or profile.get("vk_user_id")
     attachments = []
     local_photo_entries = []
     normalized_photos = []
@@ -579,6 +580,8 @@ def build_photo_attachment(vk_or_profile, profile=None, peer_id=None):
         if formatted_token and (vk is None or _is_vk_photo_token_valid(vk, formatted_token)):
             attachments.append(formatted_token)
             continue
+        if token:
+            photo["vk_token"] = None
         if has_local_file:
             local_photo_entries.append((photo, str(absolute_path)))
             continue
@@ -590,7 +593,10 @@ def build_photo_attachment(vk_or_profile, profile=None, peer_id=None):
         if vk is None:
             return ",".join(attachments) or None
         try:
-            uploaded = VkUpload(vk).photo_messages([absolute_path for _, absolute_path in local_photo_entries], peer_id=peer_id)
+            uploaded = VkUpload(vk).photo_messages(
+                [absolute_path for _, absolute_path in local_photo_entries],
+                peer_id=upload_peer_id,
+            )
         except Exception:
             uploaded = []
         for (photo, _), item in zip(local_photo_entries, uploaded):
@@ -710,7 +716,7 @@ def show_review(user, send):
     message = format_profile(user, include_review=True)
     keyboard = get_review_keyboard(user)
     try:
-        attachment = build_photo_attachment(user)
+        attachment = build_photo_attachment(user, peer_id=user.get("vk_user_id"))
     except Exception:
         attachment = None
     user["step"] = STATE_REVIEW
@@ -748,7 +754,7 @@ def show_next_candidate(vk_user_id, send):
     send(
         _candidate_browse_text(candidate),
         keyboard=get_browse_keyboard(),
-        attachment=build_photo_attachment(candidate),
+        attachment=build_photo_attachment(candidate, peer_id=vk_user_id),
     )
 
 
@@ -768,7 +774,7 @@ def show_current_or_next_candidate(vk_user_id, send):
         send(
             _candidate_browse_text(candidate, viewing_history=True, history_action=user.get("history_candidate_action")),
             keyboard=get_browse_keyboard(viewing_history=True, history_action=user.get("history_candidate_action")),
-            attachment=build_photo_attachment(candidate),
+            attachment=build_photo_attachment(candidate, peer_id=vk_user_id),
         )
         return
     candidate_vk_user_id = user.get("current_candidate")
@@ -784,7 +790,7 @@ def show_current_or_next_candidate(vk_user_id, send):
     send(
         _candidate_browse_text(candidate),
         keyboard=get_browse_keyboard(),
-        attachment=build_photo_attachment(candidate),
+        attachment=build_photo_attachment(candidate, peer_id=vk_user_id),
     )
 
 
@@ -824,7 +830,7 @@ def show_previous_candidate(vk_user_id, send):
     send(
         _candidate_browse_text(candidate, viewing_history=True, history_action=previous.get("action")),
         keyboard=get_browse_keyboard(viewing_history=True, history_action=previous.get("action")),
-        attachment=build_photo_attachment(candidate),
+        attachment=build_photo_attachment(candidate, peer_id=vk_user_id),
     )
 
 
