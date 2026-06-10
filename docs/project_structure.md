@@ -9,10 +9,10 @@
 ## Корень проекта
 
 [app.py](/c:/Projects/VS%20Code/app.py:1)  
-FastAPI-приложение, принимающее `POST /vk/callback` и `GET /health`.
+FastAPI-приложение, принимающее `POST /vk/callback` и `GET /health`. Для рабочих callback-событий быстро ставит payload во внутреннюю очередь.
 
 [event_processing.py](/c:/Projects/VS%20Code/event_processing.py:1)  
-Транспортный слой обработки callback-событий. Разделяет `message_new` и `message_event`, оборачивает вызов прикладной логики и логирует длительность обработки.
+Транспортный слой обработки callback-событий. Хранит внутреннюю очередь, запускает worker-поток, разделяет `message_new` и `message_event`, оборачивает вызов прикладной логики и логирует длительность обработки.
 
 [vk_bot.py](/c:/Projects/VS%20Code/vk_bot.py:1)  
 Создает VK API-клиент для работы с `messages`, `users`, `photos` и загрузкой изображений.
@@ -66,9 +66,6 @@ Feature-флаги для включения отдельных кнопок, н
 [docs/user_sessions_session_json.md](/c:/Projects/VS%20Code/docs/user_sessions_session_json.md:1)  
 Описание того, что именно сохраняется в `user_sessions.session_json`.
 
-[docs/user_flow_diagram_tz.md](/c:/Projects/VS%20Code/docs/user_flow_diagram_tz.md:1)  
-Техническое задание на генерацию User Flow диаграммы ВК-бота.
-
 ## Папка `sql`
 
 [sql/reset_database.sql](/c:/Projects/VS%20Code/sql/reset_database.sql:1)  
@@ -95,11 +92,12 @@ Feature-флаги для включения отдельных кнопок, н
 
 1. `config.py` загружает секреты и параметры окружения.
 2. `app.py` принимает callback-запрос от VK.
-3. `event_processing.py` маршрутизирует тип события.
-4. `router.py` определяет прикладной сценарий по текущему `step`.
-5. `utils.py` восстанавливает runtime-состояние, подтягивает VK defaults и показывает нужный экран.
-6. `database.py` сохраняет анкеты, фильтры, пути к фотографиям, лайки, мэтчи и сессии.
-7. `logger.py` фиксирует действия и ошибки.
+3. `app.py` кладет `message_new` и `message_event` во внутреннюю очередь.
+4. Worker из `event_processing.py` забирает событие и маршрутизирует его тип.
+5. `router.py` определяет прикладной сценарий по текущему `step`.
+6. `utils.py` восстанавливает runtime-состояние, подтягивает VK defaults и показывает нужный экран.
+7. `database.py` сохраняет анкеты, фильтры, пути к фотографиям, лайки, мэтчи и сессии.
+8. `logger.py` фиксирует действия и ошибки.
 
 ## Что важно помнить при дальнейших изменениях
 

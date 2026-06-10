@@ -5,10 +5,12 @@ __pycache__/
 .venv/
 diplom/
 diplom2/
+diplom3/
 
 logs/
 logs/*.log
 logs/*.jsonl
+backups/
 secrets/*.txt
 secrets/*.json
 secrets/*.pem

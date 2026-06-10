@@ -38,7 +38,7 @@
 - `city`
 - `about`
 - `gender`
-- `looking_for`
+- `uses_microphone`
 - `is_active`
 - `is_banned`
 - `banned_at`
@@ -48,6 +48,8 @@
 - `delivery_error_at`
 - `games_step_completed`
 - `updated_at`
+
+Поле `looking_for` в актуальной логике хранится в `user_filters`. Если в старой схеме оно еще есть в `profiles`, `ensure_runtime_schema()` переносит его в `user_filters`.
 
 ### `games`
 
@@ -130,9 +132,11 @@
 Ключевые поля:
 
 - `user_id`
+- `looking_for` - `male`, `female` или `any`
 - `sort_mode` - `games` или `city`
 - `age_min`
 - `age_max`
+- `microphone_preference` - требование показывать только кандидатов с микрофоном, если задано
 - `updated_at`
 
 ### `user_filter_games`
@@ -160,6 +164,7 @@
 - совпадение города;
 - возрастной диапазон из фильтра;
 - список обязательных игр из фильтра;
+- предпочтение по микрофону;
 - режим сортировки `games` или `city`.
 
 Таким образом, БД хранит не только анкеты, но и пользовательские предпочтения к самой выдаче кандидатов.
@@ -169,7 +174,9 @@
 При старте приложения вызывается `ensure_runtime_schema()`, которая:
 
 - создает `pending_likes`, `user_sessions`, `user_filters`, `user_filter_games`, если их еще нет;
-- добавляет недостающие служебные колонки в `profiles`;
+- добавляет недостающие служебные колонки в `profiles`, включая `uses_microphone`, поля бана, доставки и завершения выбора игр;
+- добавляет недостающие колонки в `user_filters`, включая `looking_for` и `microphone_preference`;
+- переносит старое `profiles.looking_for` в `user_filters.looking_for`, если старое поле существует;
 - поддерживает миграцию старого формата фото (`photo_token` -> `photo_path`);
 - добавляет `vk_photo_token` в `user_photos`, если нужно.
 
