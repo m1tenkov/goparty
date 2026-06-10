@@ -132,6 +132,7 @@ def ensure_runtime_schema():
         _add_column_if_missing(cursor, "profiles", "delivery_error_code", "VARCHAR(32) DEFAULT NULL")
         _add_column_if_missing(cursor, "profiles", "delivery_error_at", "TIMESTAMP NULL DEFAULT NULL")
         _drop_column_if_exists(cursor, "profiles", "games_step_completed")
+        cursor.execute("ALTER TABLE profiles MODIFY is_active TINYINT(1) NOT NULL DEFAULT 0")
         _add_column_if_missing(cursor, "profiles", "uses_microphone", "TINYINT(1) DEFAULT NULL")
         cursor.execute("ALTER TABLE profiles MODIFY uses_microphone TINYINT(1) DEFAULT NULL")
         cursor.execute(
@@ -368,7 +369,7 @@ def _build_profile(base_row):
         "gender": base_row.get("gender"),
         "looking_for": base_row.get("looking_for"),
         "uses_microphone": base_row.get("uses_microphone"),
-        "is_active": base_row.get("is_active", 1),
+        "is_active": base_row.get("is_active") if base_row.get("is_active") is not None else 0,
         "is_banned": base_row.get("is_banned", 0),
         "banned_at": base_row.get("banned_at"),
         "ban_reason": base_row.get("ban_reason"),
@@ -907,6 +908,22 @@ def get_random_candidate(vk_user_id, filters=None):
           AND p.city IS NOT NULL
           AND p.gender IS NOT NULL
           AND p.about IS NOT NULL
+          AND EXISTS (
+              SELECT 1
+              FROM user_filters candidate_filters
+              WHERE candidate_filters.user_id = u.id
+                AND candidate_filters.looking_for IS NOT NULL
+          )
+          AND EXISTS (
+              SELECT 1
+              FROM user_games candidate_games
+              WHERE candidate_games.user_id = u.id
+          )
+          AND EXISTS (
+              SELECT 1
+              FROM user_photos candidate_photos
+              WHERE candidate_photos.user_id = u.id
+          )
           AND NOT EXISTS (
               SELECT 1
               FROM interactions i

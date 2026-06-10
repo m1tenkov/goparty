@@ -643,23 +643,6 @@ def reactivate_profile_if_needed(user):
         save_text_field(user, "is_active", 1)
 
 
-# Проверяет, заполнены ли все обязательные поля анкеты.
-def is_profile_complete(user):
-    return all(
-        [
-            user.get("name"),
-            user.get("age"),
-            user.get("gender"),
-            user.get("city"),
-            user.get("looking_for"),
-            user.get("uses_microphone") in (0, 1, False, True),
-            selected_games(user),
-            user.get("about"),
-            user.get("photos"),
-        ]
-    )
-
-
 # Отправляет следующий обязательный шаг регистрации для незаполненной анкеты.
 def ask_next_required_field(user, send):
     if not user.get("name"):
@@ -698,6 +681,11 @@ def ask_next_required_field(user, send):
         send(texts.MSG_ADD_PHOTO_PROMPT, keyboard=EMPTY_KEYBOARD)
         return True
     return False
+
+
+def publish_profile(user):
+    if user.get("is_active") != 1:
+        save_text_field(user, "is_active", 1)
 
 
 # Показывает пользователю его заполненную анкету с клавиатурой обзора.

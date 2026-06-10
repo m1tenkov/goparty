@@ -115,6 +115,7 @@ from .utils import (
     has_pending_likes,
     parse_payload,
     persist_user_filters,
+    publish_profile,
     reactivate_profile_if_needed,
     save_games_state,
     save_photos_state,
@@ -129,7 +130,6 @@ from .utils import (
     show_games_picker,
     start_games_flow,
     sync_profile_from_db,
-    is_profile_complete,
 )
 
 
@@ -647,7 +647,6 @@ def handle_incoming_like(vk, user, normalized_text, send):
 
 # Инициализирует или восстанавливает сценарий пользователя при начале диалога с ботом.
 def start_bot_flow(vk, vk_user_id, send):
-    existed_before = get_profile_by_vk_user_id(vk_user_id) is not None
     user = ensure_runtime_user(vk, vk_user_id)
     if user.get("is_banned"):
         _handle_banned_user(user, send)
@@ -658,17 +657,11 @@ def start_bot_flow(vk, vk_user_id, send):
         _handle_banned_user(user, send)
         return
 
-    if existed_before:
-        if is_profile_complete(user):
-            if has_pending_likes(vk_user_id) and show_next_pending_like_if_any(user, send):
-                return
-            show_review(user, send)
-            return
-
     if ask_next_required_field(user, send):
         return
     if has_pending_likes(vk_user_id) and show_next_pending_like_if_any(user, send):
         return
+    publish_profile(user)
     show_review(user, send)
 
 
@@ -766,6 +759,7 @@ def handle_message_event(vk, event):
 
                 if ask_next_required_field(user, send):
                     return
+                publish_profile(user)
                 show_review(user, send)
                 return
         if user.get("step") == STATE_FILTERS_GAME:
@@ -853,6 +847,7 @@ def handle_reg_name(user, raw_text, normalized_text, send):
         save_text_field(user, "name", candidate)
     if ask_next_required_field(user, send):
         return
+    publish_profile(user)
     show_review(user, send)
 
 
@@ -875,6 +870,7 @@ def handle_reg_age(user, normalized_text, send):
         save_text_field(user, "age", age)
     if ask_next_required_field(user, send):
         return
+    publish_profile(user)
     show_review(user, send)
 
 
@@ -895,6 +891,7 @@ def handle_reg_gender(user, normalized_text, send):
         return
     if ask_next_required_field(user, send):
         return
+    publish_profile(user)
     show_review(user, send)
 
 
@@ -919,6 +916,7 @@ def handle_reg_city(user, raw_text, normalized_text, send):
         save_text_field(user, "city", candidate)
     if ask_next_required_field(user, send):
         return
+    publish_profile(user)
     show_review(user, send)
 
 
@@ -939,6 +937,7 @@ def handle_reg_looking(user, normalized_text, send):
     persist_user_filters(user)
     if ask_next_required_field(user, send):
         return
+    publish_profile(user)
     show_review(user, send)
 
 
@@ -952,6 +951,7 @@ def handle_reg_microphone(user, normalized_text, send):
         return
     if ask_next_required_field(user, send):
         return
+    publish_profile(user)
     show_review(user, send)
 
 
@@ -973,6 +973,7 @@ def handle_about(user, raw_text, attachments, send):
     save_text_field(user, "about", candidate)
     if ask_next_required_field(user, send):
         return
+    publish_profile(user)
     show_review(user, send)
 
 
@@ -1017,8 +1018,6 @@ def handle_photos(vk, user, raw_text, attachments, message_id, send):
         return
 
     save_photos_state(user, total_photos)
-    if is_profile_complete(user) and user.get("is_active") != 1:
-        save_text_field(user, "is_active", 1)
     if len(total_photos) < 3:
         user["step"] = STATE_PHOTO_MORE
         message = format_photo_more_prompt(len(total_photos))
@@ -1027,12 +1026,14 @@ def handle_photos(vk, user, raw_text, attachments, message_id, send):
         send(message, keyboard=get_photo_more_keyboard())
         return
 
+    publish_profile(user)
     show_review(user, send)
 
 
 # Обрабатывает действие «завершить добавление фото» после первых загрузок.
 def handle_photo_more(user, normalized_text, send):
     if normalized_text == texts.BUTTON_PHOTO_DONE.lower():
+        publish_profile(user)
         show_review(user, send)
         return
     send(format_photo_more_prompt(len(user.get("photos", []))), keyboard=get_photo_more_keyboard())
