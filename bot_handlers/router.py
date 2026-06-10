@@ -249,6 +249,24 @@ def safe_vk_send(vk, **kwargs):
         direct_user_id = kwargs.get("user_id")
         if direct_user_id and not is_bot_vk_user_id(direct_user_id) and _is_delivery_unavailable_error(error):
             mark_profile_delivery_unavailable(direct_user_id, error_code=error_code)
+        if kwargs.get("attachment") and "photo is undefined" in str(error).lower():
+            retry_kwargs = dict(kwargs)
+            retry_kwargs.pop("attachment", None)
+            try:
+                vk.messages.send(**retry_kwargs)
+                log_action(
+                    "vk_send_retried_without_attachment",
+                    recipient=recipient,
+                    error_code=error_code,
+                )
+                return True
+            except Exception as retry_error:
+                log_action(
+                    "vk_send_retry_failed",
+                    recipient=recipient,
+                    error_code=_extract_vk_error_code(retry_error),
+                    error=str(retry_error),
+                )
         return False
 
 
@@ -1041,6 +1059,9 @@ def handle_photo_more(user, normalized_text, send):
 
 # Обрабатывает нажатия кнопок на экране обзора анкеты.
 def handle_review(user, normalized_text, send):
+    if normalized_text == texts.BUTTON_MY_PROFILE.lower():
+        show_review(user, send)
+        return
     if normalized_text == texts.BUTTON_REVIEW_BROWSE.lower():
         if is_duplicate_action(user, "review:browse"):
             return

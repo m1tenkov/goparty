@@ -482,6 +482,19 @@ def _is_vk_photo_token_valid(vk, token):
     return bool(response)
 
 
+def _format_vk_photo_attachment(token):
+    token_value = str(token or "").strip()
+    if token_value.startswith("photo"):
+        token_value = token_value[5:]
+    parts = token_value.split("_")
+    if len(parts) < 2:
+        return None
+    owner_id, photo_id = parts[0], parts[1]
+    if not owner_id.lstrip("-").isdigit() or not photo_id.isdigit():
+        return None
+    return f"photo{token_value}"
+
+
 # Извлекает фото из вложений VK, скачивает их в локальное хранилище и отмечает наличие других типов вложений.
 def extract_photo_payload(attachments, vk_user_id):
     if not attachments:
@@ -562,10 +575,9 @@ def build_photo_attachment(vk_or_profile, profile=None, peer_id=None):
             continue
         absolute_path = resolve_local_photo_path(path) if _is_local_photo_reference(path) else None
         has_local_file = bool(absolute_path and absolute_path.exists())
-        if token and (has_local_file or _is_vk_photo_token_valid(vk, token)):
-            if not token.startswith("photo"):
-                token = f"photo{token}"
-            attachments.append(token)
+        formatted_token = _format_vk_photo_attachment(token)
+        if formatted_token and (vk is None or _is_vk_photo_token_valid(vk, formatted_token)):
+            attachments.append(formatted_token)
             continue
         if has_local_file:
             local_photo_entries.append((photo, str(absolute_path)))
@@ -577,7 +589,10 @@ def build_photo_attachment(vk_or_profile, profile=None, peer_id=None):
     if local_photo_entries:
         if vk is None:
             return ",".join(attachments) or None
-        uploaded = VkUpload(vk).photo_messages([absolute_path for _, absolute_path in local_photo_entries], peer_id=peer_id)
+        try:
+            uploaded = VkUpload(vk).photo_messages([absolute_path for _, absolute_path in local_photo_entries], peer_id=peer_id)
+        except Exception:
+            uploaded = []
         for (photo, _), item in zip(local_photo_entries, uploaded):
             owner_id = item.get("owner_id")
             photo_id = item.get("id")
@@ -588,7 +603,9 @@ def build_photo_attachment(vk_or_profile, profile=None, peer_id=None):
             if access_key:
                 token_value = f"{token_value}_{access_key}"
             photo["vk_token"] = token_value
-            attachments.append(f"photo{token_value}")
+            formatted_token = _format_vk_photo_attachment(token_value)
+            if formatted_token:
+                attachments.append(formatted_token)
 
     profile["photos"] = normalized_photos
     if profile.get("vk_user_id") is not None:
@@ -690,16 +707,18 @@ def publish_profile(user):
 
 # Показывает пользователю его заполненную анкету с клавиатурой обзора.
 def show_review(user, send):
+    message = format_profile(user, include_review=True)
+    keyboard = get_review_keyboard(user)
+    try:
+        attachment = build_photo_attachment(user)
+    except Exception:
+        attachment = None
     user["step"] = STATE_REVIEW
     user["browse_mode"] = "new"
     user["history_candidate_action"] = None
     user["history_cursor_id"] = None
     user["history_cursor_created_at"] = None
-    send(
-        format_profile(user, include_review=True),
-        keyboard=get_review_keyboard(user),
-        attachment=build_photo_attachment(user),
-    )
+    send(message, keyboard=keyboard, attachment=attachment)
 
 
 # Формирует текст кандидата для режима просмотра и истории.
