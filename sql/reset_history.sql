@@ -5,10 +5,6 @@
 
 USE goparty_bot;
 
-DELETE FROM matches;
 DELETE FROM interactions;
-DELETE FROM pending_likes;
 
-ALTER TABLE matches AUTO_INCREMENT = 1;
 ALTER TABLE interactions AUTO_INCREMENT = 1;
-ALTER TABLE pending_likes AUTO_INCREMENT = 1;

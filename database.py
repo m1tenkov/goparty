@@ -87,28 +87,44 @@ def _column_exists(cursor, table_name, column_name):
 
 
 # Проверяет, что служебные таблицы и runtime-поля профиля существуют в базе.
+def _table_exists(cursor, table_name):
+    cursor.execute(
+        """
+        SELECT 1
+        FROM information_schema.tables
+        WHERE table_schema = %s
+          AND table_name = %s
+        LIMIT 1
+        """,
+        (DB_NAME, table_name),
+    )
+    return cursor.fetchone() is not None
+
+
+def _drop_column_if_exists(cursor, table_name, column_name):
+    if _column_exists(cursor, table_name, column_name):
+        cursor.execute(f"ALTER TABLE {table_name} DROP COLUMN {column_name}")
+
+
 def ensure_runtime_schema():
     with connection.cursor() as cursor:
-        cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS pending_likes (
-                id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
-                liker_user_id BIGINT(20) UNSIGNED NOT NULL,
-                target_user_id BIGINT(20) UNSIGNED NOT NULL,
-                like_message TEXT DEFAULT NULL,
-                response_action ENUM('like', 'dislike') DEFAULT NULL,
-                notified_at TIMESTAMP NULL DEFAULT NULL,
-                responded_at TIMESTAMP NULL DEFAULT NULL,
-                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                PRIMARY KEY (id),
-                UNIQUE KEY uq_pending_like_pair (liker_user_id, target_user_id),
-                KEY idx_pending_likes_target_pending (target_user_id, responded_at, created_at),
-                CONSTRAINT fk_pending_likes_liker FOREIGN KEY (liker_user_id) REFERENCES users (id) ON DELETE CASCADE,
-                CONSTRAINT fk_pending_likes_target FOREIGN KEY (target_user_id) REFERENCES users (id) ON DELETE CASCADE
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
-            """
-        )
-        _add_column_if_missing(cursor, "pending_likes", "like_message", "TEXT DEFAULT NULL")
+        _add_column_if_missing(cursor, "interactions", "like_message", "TEXT DEFAULT NULL")
+        if _table_exists(cursor, "pending_likes"):
+            cursor.execute(
+                """
+                INSERT INTO interactions (from_user_id, to_user_id, action, like_message, created_at)
+                SELECT liker_user_id, target_user_id, 'like', like_message, created_at
+                FROM pending_likes
+                ON DUPLICATE KEY UPDATE
+                    action = 'like',
+                    like_message = COALESCE(interactions.like_message, VALUES(like_message))
+                """
+            )
+            cursor.execute("DROP TABLE pending_likes")
+        if _table_exists(cursor, "matches"):
+            cursor.execute("DROP TABLE matches")
+        _drop_column_if_exists(cursor, "user_games", "created_at")
+        _drop_column_if_exists(cursor, "user_photos", "created_at")
         _add_column_if_missing(cursor, "profiles", "is_banned", "TINYINT(1) NOT NULL DEFAULT 0")
         _add_column_if_missing(cursor, "profiles", "banned_at", "TIMESTAMP NULL DEFAULT NULL")
         _add_column_if_missing(cursor, "profiles", "ban_reason", "VARCHAR(255) DEFAULT NULL")
@@ -156,6 +172,7 @@ def ensure_runtime_schema():
                 ON DUPLICATE KEY UPDATE looking_for = COALESCE(user_filters.looking_for, VALUES(looking_for))
                 """
             )
+            _drop_column_if_exists(cursor, "profiles", "looking_for")
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS user_filter_games (
@@ -436,9 +453,16 @@ def has_pending_like_for_target(vk_user_id):
         cursor.execute(
             """
             SELECT 1
-            FROM pending_likes
-            WHERE target_user_id = %s
-              AND responded_at IS NULL
+            FROM interactions i
+            WHERE i.to_user_id = %s
+              AND i.action = 'like'
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM interactions response
+                  WHERE response.from_user_id = i.to_user_id
+                    AND response.to_user_id = i.from_user_id
+                    AND response.action IN ('like', 'dislike')
+              )
             LIMIT 1
             """,
             (user_row["id"],),
@@ -455,16 +479,23 @@ def get_next_pending_like_profile(vk_user_id):
     with connection.cursor() as cursor:
         cursor.execute(
             """
-            SELECT u.vk_user_id, pl.like_message
-            FROM pending_likes pl
-            JOIN users u ON u.id = pl.liker_user_id
+            SELECT u.vk_user_id, i.like_message
+            FROM interactions i
+            JOIN users u ON u.id = i.from_user_id
             JOIN profiles p ON p.user_id = u.id
-            WHERE pl.target_user_id = %s
-              AND pl.responded_at IS NULL
+            WHERE i.to_user_id = %s
+              AND i.action = 'like'
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM interactions response
+                  WHERE response.from_user_id = i.to_user_id
+                    AND response.to_user_id = i.from_user_id
+                    AND response.action IN ('like', 'dislike')
+              )
               AND p.is_active = 1
               AND p.is_banned = 0
               AND COALESCE(p.delivery_disabled, 0) = 0
-            ORDER BY pl.created_at, pl.id
+            ORDER BY i.created_at, i.id
             LIMIT 1
             """,
             (user_row["id"],),
@@ -487,76 +518,52 @@ def enqueue_pending_like(liker_vk_user_id, target_vk_user_id, like_message=None)
 
     liker_user = get_or_create_user(liker_vk_user_id)
     target_user = get_or_create_user(target_vk_user_id)
+    message = (like_message or "").strip() or None
 
     with connection.cursor() as cursor:
         cursor.execute(
             """
-            SELECT COUNT(*) AS pending_count
-            FROM pending_likes
-            WHERE target_user_id = %s
-              AND responded_at IS NULL
+            UPDATE interactions
+            SET like_message = COALESCE(%s, like_message)
+            WHERE from_user_id = %s
+              AND to_user_id = %s
+              AND action = 'like'
             """,
-            (target_user["id"],),
+            (message, liker_user["id"], target_user["id"]),
         )
-        pending_before = cursor.fetchone()["pending_count"]
-        inserted = cursor.execute(
+        cursor.execute(
             """
-            INSERT IGNORE INTO pending_likes (liker_user_id, target_user_id, like_message)
-            VALUES (%s, %s, %s)
+            SELECT 1
+            FROM interactions i
+            WHERE i.from_user_id = %s
+              AND i.to_user_id = %s
+              AND i.action = 'like'
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM interactions response
+                  WHERE response.from_user_id = i.to_user_id
+                    AND response.to_user_id = i.from_user_id
+                    AND response.action IN ('like', 'dislike')
+              )
+            LIMIT 1
             """,
-            (liker_user["id"], target_user["id"], (like_message or "").strip() or None),
+            (liker_user["id"], target_user["id"]),
         )
+        is_pending = cursor.fetchone() is not None
     connection.commit()
-    return inserted == 1 and pending_before == 0
+    return is_pending
 
 
 # Помечает pending like как уже показанный целевому пользователю.
 def mark_pending_like_notified(target_vk_user_id, liker_vk_user_id):
-    target_user = get_user_row_by_vk_user_id(target_vk_user_id)
-    liker_user = get_user_row_by_vk_user_id(liker_vk_user_id)
-    if not target_user or not liker_user:
-        return False
-
-    with connection.cursor() as cursor:
-        updated = cursor.execute(
-            """
-            UPDATE pending_likes
-            SET notified_at = COALESCE(notified_at, CURRENT_TIMESTAMP)
-            WHERE liker_user_id = %s
-              AND target_user_id = %s
-              AND responded_at IS NULL
-            """,
-            (liker_user["id"], target_user["id"]),
-        )
-    connection.commit()
-    return updated > 0
+    return bool(get_user_row_by_vk_user_id(target_vk_user_id) and get_user_row_by_vk_user_id(liker_vk_user_id))
 
 
 # Сохраняет ответ целевого пользователя на pending like.
 def resolve_pending_like(target_vk_user_id, liker_vk_user_id, response_action):
     if response_action not in ("like", "dislike"):
         raise ValueError("Unsupported response action")
-
-    target_user = get_user_row_by_vk_user_id(target_vk_user_id)
-    liker_user = get_user_row_by_vk_user_id(liker_vk_user_id)
-    if not target_user or not liker_user:
-        return False
-
-    with connection.cursor() as cursor:
-        updated = cursor.execute(
-            """
-            UPDATE pending_likes
-            SET response_action = %s,
-                responded_at = CURRENT_TIMESTAMP,
-                notified_at = COALESCE(notified_at, CURRENT_TIMESTAMP)
-            WHERE liker_user_id = %s
-              AND target_user_id = %s
-              AND responded_at IS NULL
-            """,
-            (response_action, liker_user["id"], target_user["id"]),
-        )
-    connection.commit()
-    return updated > 0
+    return bool(get_user_row_by_vk_user_id(target_vk_user_id) and get_user_row_by_vk_user_id(liker_vk_user_id))
 
 
 # Сохраняет простые поля анкеты в profiles и отслеживает значимые изменения.
@@ -741,12 +748,8 @@ def delete_user_data(vk_user_id):
 
 def clear_history():
     with connection.cursor() as cursor:
-        cursor.execute("DELETE FROM matches")
         cursor.execute("DELETE FROM interactions")
-        cursor.execute("DELETE FROM pending_likes")
-        cursor.execute("ALTER TABLE matches AUTO_INCREMENT = 1")
         cursor.execute("ALTER TABLE interactions AUTO_INCREMENT = 1")
-        cursor.execute("ALTER TABLE pending_likes AUTO_INCREMENT = 1")
     connection.commit()
     return True
 
@@ -1000,9 +1003,12 @@ def record_interaction(from_vk_user_id, to_vk_user_id, action):
     with connection.cursor() as cursor:
         cursor.execute(
             """
-            INSERT INTO interactions (from_user_id, to_user_id, action)
-            VALUES (%s, %s, %s)
-            ON DUPLICATE KEY UPDATE action = VALUES(action), created_at = CURRENT_TIMESTAMP
+            INSERT INTO interactions (from_user_id, to_user_id, action, like_message)
+            VALUES (%s, %s, %s, NULL)
+            ON DUPLICATE KEY UPDATE
+                action = VALUES(action),
+                like_message = IF(VALUES(action) = 'like', like_message, NULL),
+                created_at = CURRENT_TIMESTAMP
             """,
             (from_user["id"], to_user["id"], action),
         )
@@ -1018,13 +1024,6 @@ def record_interaction(from_vk_user_id, to_vk_user_id, action):
                 (to_user["id"], from_user["id"]),
             )
             matched = cursor.fetchone() is not None
-            if matched:
-                user1_id = min(from_user["id"], to_user["id"])
-                user2_id = max(from_user["id"], to_user["id"])
-                cursor.execute(
-                    "INSERT IGNORE INTO matches (user1_id, user2_id) VALUES (%s, %s)",
-                    (user1_id, user2_id),
-                )
 
     connection.commit()
     return {
