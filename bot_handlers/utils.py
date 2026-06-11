@@ -8,6 +8,7 @@ import requests
 from vk_api.upload import VkUpload
 
 from config import BASE_DIR, PHOTO_STORAGE_DIR
+from logger import log_action
 from database import (
     DEFAULT_FILTERS,
     GAME_CODES,
@@ -469,6 +470,18 @@ def _download_photo_to_storage(vk_user_id, photo, sort_index):
     }
 
 
+def _extract_vk_photo_token(photo):
+    owner_id = photo.get("owner_id")
+    photo_id = photo.get("id")
+    access_key = photo.get("access_key")
+    if owner_id is None or photo_id is None:
+        return None
+    token = f"{owner_id}_{photo_id}"
+    if access_key:
+        token = f"{token}_{access_key}"
+    return token
+
+
 def _is_vk_photo_token_valid(vk, token):
     if vk is None or not token:
         return False
@@ -477,7 +490,12 @@ def _is_vk_photo_token_valid(vk, token):
         token_value = token_value[5:]
     try:
         response = vk.photos.getById(photos=token_value)
-    except Exception:
+    except Exception as error:
+        log_action(
+            "vk_photo_token_invalid",
+            token=_format_vk_photo_attachment(token),
+            error=str(error),
+        )
         return False
     return bool(response)
 
@@ -510,6 +528,7 @@ def extract_photo_payload(attachments, vk_user_id):
             photo = attachment.get("photo") or {}
             stored_path = _download_photo_to_storage(vk_user_id, photo, len(photos) + 1)
             if stored_path:
+                stored_path["vk_token"] = _extract_vk_photo_token(photo)
                 photos.append(stored_path)
         return photos, has_other_content
 
@@ -585,6 +604,12 @@ def build_photo_attachment(vk_or_profile, profile=None, peer_id=None):
         if has_local_file:
             local_photo_entries.append((photo, str(absolute_path)))
             continue
+        if path:
+            log_action(
+                "local_photo_missing",
+                vk_user_id=profile.get("vk_user_id"),
+                photo_path=path,
+            )
         default_photo_path = resolve_default_photo_path()
         if default_photo_path:
             local_photo_entries.append((photo, str(default_photo_path)))
@@ -597,7 +622,14 @@ def build_photo_attachment(vk_or_profile, profile=None, peer_id=None):
                 [absolute_path for _, absolute_path in local_photo_entries],
                 peer_id=upload_peer_id,
             )
-        except Exception:
+        except Exception as error:
+            log_action(
+                "vk_photo_upload_failed",
+                vk_user_id=profile.get("vk_user_id"),
+                peer_id=upload_peer_id,
+                photo_paths=[absolute_path for _, absolute_path in local_photo_entries],
+                error=str(error),
+            )
             uploaded = []
         for (photo, _), item in zip(local_photo_entries, uploaded):
             owner_id = item.get("owner_id")
