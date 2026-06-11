@@ -408,7 +408,22 @@ def resolve_local_photo_path(photo_reference):
     normalized = str(photo_reference or "").replace("\\", "/").strip()
     if not normalized or not _is_local_photo_reference(normalized):
         return None
-    return (BASE_DIR / Path(normalized)).resolve()
+    absolute_path = (BASE_DIR / Path(normalized)).resolve()
+    if absolute_path.exists():
+        return absolute_path
+
+    sort_prefix = absolute_path.name.split("_", 1)[0]
+    if sort_prefix.isdigit() and absolute_path.parent.exists():
+        for fallback_path in sorted(absolute_path.parent.glob(f"{sort_prefix}.*")):
+            if fallback_path.is_file():
+                log_action(
+                    "local_photo_fallback_used",
+                    requested_path=normalized,
+                    fallback_path=fallback_path.relative_to(BASE_DIR).as_posix(),
+                )
+                return fallback_path.resolve()
+
+    return absolute_path
 
 
 def resolve_default_photo_path():
