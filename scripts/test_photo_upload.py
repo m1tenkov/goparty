@@ -7,7 +7,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from vk_api.upload import FilesOpener, VkUpload
+import requests
 
 from config import BASE_DIR
 from vk_bot import create_vk_api
@@ -28,11 +28,14 @@ def main():
         raise SystemExit(2)
 
     vk = create_vk_api()
-    upload = VkUpload(vk)
     upload_server = vk.photos.getMessagesUploadServer(peer_id=args.peer_id)
     print(f"upload_server={upload_server}")
-    with FilesOpener(str(absolute_path)) as photo_files:
-        raw_response = upload.http.post(upload_server["upload_url"], files=photo_files)
+    with absolute_path.open("rb") as photo_file:
+        raw_response = requests.post(
+            upload_server["upload_url"],
+            files={"file1": (absolute_path.name, photo_file, "image/jpeg")},
+            timeout=60,
+        )
     print(f"upload_status_code={raw_response.status_code}")
     print(f"upload_text={raw_response.text[:2000]}")
     upload_payload = raw_response.json()

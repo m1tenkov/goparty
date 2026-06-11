@@ -1,11 +1,12 @@
-﻿import json
+import json
+from contextlib import ExitStack
 from datetime import date
+import mimetypes
 from pathlib import Path
 from urllib.parse import urlparse
 
 import hashlib
 import requests
-from vk_api.upload import VkUpload
 
 from config import BASE_DIR, GROUP_ID, PHOTO_STORAGE_DIR
 from logger import log_action
@@ -542,6 +543,31 @@ def _format_vk_photo_attachment(token):
     return f"photo{token_value}"
 
 
+def _upload_message_photos(vk, photo_paths, peer_id):
+    upload_url = vk.photos.getMessagesUploadServer(peer_id=peer_id)["upload_url"]
+    files = []
+    with ExitStack() as stack:
+        for index, photo_path in enumerate(photo_paths, start=1):
+            path = Path(photo_path)
+            file_obj = stack.enter_context(path.open("rb"))
+            content_type = mimetypes.guess_type(path.name)[0] or "image/jpeg"
+            files.append((f"file{index}", (path.name, file_obj, content_type)))
+
+        response = requests.post(upload_url, files=files, timeout=60)
+        response.raise_for_status()
+        payload = response.json()
+
+    if not payload.get("photo"):
+        log_action(
+            "vk_photo_upload_bad_response",
+            peer_id=peer_id,
+            status_code=response.status_code,
+            response=payload,
+        )
+
+    return vk.photos.saveMessagesPhoto(**payload)
+
+
 # Извлекает фото из вложений VK, скачивает их в локальное хранилище и отмечает наличие других типов вложений.
 def extract_photo_payload(attachments, vk_user_id):
     if not attachments:
@@ -664,7 +690,8 @@ def build_photo_attachment(vk_or_profile, profile=None, peer_id=None):
         if vk is None:
             return ",".join(attachments) or None
         try:
-            uploaded = VkUpload(vk).photo_messages(
+            uploaded = _upload_message_photos(
+                vk,
                 [absolute_path for _, absolute_path in local_photo_entries],
                 peer_id=upload_peer_id,
             )
