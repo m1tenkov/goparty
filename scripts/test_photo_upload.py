@@ -15,6 +15,9 @@ from config import BASE_DIR, TOKEN, VK_API_VERSION
 from vk_bot import create_vk_api
 
 
+SCRIPT_VERSION = "photo-upload-debug-20260611-photos-save-fallback"
+
+
 def iter_save_messages_photo_payloads(upload_payload):
     if upload_payload.get("photo"):
         yield upload_payload
@@ -115,6 +118,7 @@ def main():
     parser.add_argument("--send", action="store_true", help="Also send the uploaded attachment to --peer-id.")
     args = parser.parse_args()
 
+    print(f"script_version={SCRIPT_VERSION}")
     absolute_path = BASE_DIR / Path(args.photo_path.replace("\\", "/"))
     print(f"project_root={BASE_DIR}")
     print(f"photo_path={absolute_path}")
