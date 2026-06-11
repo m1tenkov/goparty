@@ -1,4 +1,5 @@
 import argparse
+import json
 from pathlib import Path
 import sys
 
@@ -12,6 +13,43 @@ import requests
 from config import BASE_DIR
 from vk_bot import create_vk_api
 
+
+def iter_save_messages_photo_payloads(upload_payload):
+    if upload_payload.get("photo"):
+        yield upload_payload
+        return
+
+    files_payload = upload_payload.get("files")
+    if not files_payload:
+        yield upload_payload
+        return
+
+    file_values = list(files_payload.values())
+    common = {
+        "server": upload_payload.get("server"),
+        "hash": upload_payload.get("hash"),
+    }
+    yield {**common, "photo": json.dumps(files_payload, ensure_ascii=False)}
+    yield {**common, "photo": json.dumps(file_values, ensure_ascii=False)}
+    yield {**common, "photos_list": json.dumps(files_payload, ensure_ascii=False)}
+    yield {**common, "photos_list": json.dumps(file_values, ensure_ascii=False)}
+
+
+def save_message_photos(vk, upload_payload):
+    last_error = None
+    for index, save_payload in enumerate(iter_save_messages_photo_payloads(upload_payload), start=1):
+        print(f"save_variant_{index}={save_payload}")
+        try:
+            uploaded = vk.photos.saveMessagesPhoto(**save_payload)
+        except Exception as error:
+            last_error = error
+            print(f"save_variant_{index}_error={error}")
+            continue
+        print(f"save_variant_{index}_ok=True")
+        return uploaded
+    if last_error:
+        raise last_error
+    return []
 
 def main():
     parser = argparse.ArgumentParser(description="Test VK message photo upload from a local file.")
@@ -40,7 +78,7 @@ def main():
     print(f"upload_text={raw_response.text[:2000]}")
     upload_payload = raw_response.json()
 
-    uploaded = vk.photos.saveMessagesPhoto(**upload_payload)
+    uploaded = save_message_photos(vk, upload_payload)
     print(f"uploaded={uploaded}")
 
     attachments = []

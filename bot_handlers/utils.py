@@ -543,6 +543,43 @@ def _format_vk_photo_attachment(token):
     return f"photo{token_value}"
 
 
+def _iter_save_messages_photo_payloads(upload_payload):
+    if upload_payload.get("photo"):
+        yield upload_payload
+        return
+
+    files_payload = upload_payload.get("files")
+    if not files_payload:
+        yield upload_payload
+        return
+
+    file_values = list(files_payload.values())
+    common = {
+        "server": upload_payload.get("server"),
+        "hash": upload_payload.get("hash"),
+    }
+    yield {**common, "photo": json.dumps(files_payload, ensure_ascii=False)}
+    yield {**common, "photo": json.dumps(file_values, ensure_ascii=False)}
+    yield {**common, "photos_list": json.dumps(files_payload, ensure_ascii=False)}
+    yield {**common, "photos_list": json.dumps(file_values, ensure_ascii=False)}
+
+
+def _save_message_photos(vk, upload_payload):
+    last_error = None
+    for save_payload in _iter_save_messages_photo_payloads(upload_payload):
+        try:
+            return vk.photos.saveMessagesPhoto(**save_payload)
+        except Exception as error:
+            last_error = error
+            log_action(
+                "vk_photo_save_variant_failed",
+                payload_keys=list(save_payload.keys()),
+                error=str(error),
+            )
+    if last_error:
+        raise last_error
+    return []
+
 def _upload_message_photos(vk, photo_paths, peer_id):
     upload_url = vk.photos.getMessagesUploadServer(peer_id=peer_id)["upload_url"]
     files = []
@@ -565,7 +602,7 @@ def _upload_message_photos(vk, photo_paths, peer_id):
             response=payload,
         )
 
-    return vk.photos.saveMessagesPhoto(**payload)
+    return _save_message_photos(vk, payload)
 
 
 # Извлекает фото из вложений VK, скачивает их в локальное хранилище и отмечает наличие других типов вложений.
