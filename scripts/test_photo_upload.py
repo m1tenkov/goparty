@@ -9,8 +9,9 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 import requests
+import vk_api
 
-from config import BASE_DIR
+from config import BASE_DIR, TOKEN, VK_API_VERSION
 from vk_bot import create_vk_api
 
 
@@ -69,6 +70,7 @@ def main():
     parser = argparse.ArgumentParser(description="Test VK message photo upload from a local file.")
     parser.add_argument("photo_path", help="Photo path relative to the project root, for example storage/photos/147991194/1.jpg")
     parser.add_argument("--peer-id", required=True, type=int, help="VK user_id or chat peer_id to create a message upload server for.")
+    parser.add_argument("--api-version", default=VK_API_VERSION, help="VK API version to use for the test.")
     parser.add_argument("--send", action="store_true", help="Also send the uploaded attachment to --peer-id.")
     args = parser.parse_args()
 
@@ -79,7 +81,11 @@ def main():
     if not absolute_path.exists():
         raise SystemExit(2)
 
-    vk = create_vk_api()
+    print(f"api_version={args.api_version}")
+    if args.api_version == VK_API_VERSION:
+        vk = create_vk_api()
+    else:
+        vk = vk_api.VkApi(token=TOKEN, api_version=args.api_version).get_api()
     upload_server = vk.photos.getMessagesUploadServer(peer_id=args.peer_id)
     print(f"upload_server={upload_server}")
     with absolute_path.open("rb") as photo_file:

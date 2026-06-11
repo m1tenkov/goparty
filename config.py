@@ -49,6 +49,7 @@ def _build_db_config(file_name, defaults=None):
 
 TOKEN = _env_or_file("VK_BOT_TOKEN", SECRETS_DIR / "token.txt")
 GROUP_ID = int(os.getenv("VK_GROUP_ID", "237423541"))
+VK_API_VERSION = os.getenv("VK_API_VERSION", "5.199")
 VK_CALLBACK_SECRET = _env_or_file("VK_CALLBACK_SECRET", SECRETS_DIR / "vk_callback_secret.txt", "")
 VK_CALLBACK_CONFIRMATION_TOKEN = _env_or_file(
     "VK_CALLBACK_CONFIRMATION_TOKEN",
