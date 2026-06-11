@@ -29,11 +29,25 @@ def iter_save_messages_photo_payloads(upload_payload):
         "server": upload_payload.get("server"),
         "hash": upload_payload.get("hash"),
     }
-    yield {**common, "photo": json.dumps(files_payload, ensure_ascii=False)}
-    yield {**common, "photo": json.dumps(file_values, ensure_ascii=False)}
-    yield {**common, "photos_list": json.dumps(files_payload, ensure_ascii=False)}
-    yield {**common, "photos_list": json.dumps(file_values, ensure_ascii=False)}
+    raw_upload = json.dumps(upload_payload, ensure_ascii=False)
+    files_object = json.dumps(files_payload, ensure_ascii=False)
+    files_list = json.dumps(file_values, ensure_ascii=False)
 
+    yield {**common, "photo": files_object}
+    yield {**common, "photo": files_list}
+    yield {**common, "photo": raw_upload}
+    yield {"server": upload_payload.get("server"), "photo": files_object, "hash": upload_payload.get("hash")}
+    yield {"server": upload_payload.get("server"), "photo": files_list, "hash": upload_payload.get("hash")}
+    yield {"server": upload_payload.get("server"), "photo": raw_upload, "hash": upload_payload.get("hash")}
+    yield {"server": upload_payload.get("server"), "photo": files_object}
+    yield {"server": upload_payload.get("server"), "photo": files_list}
+    yield {"server": upload_payload.get("server"), "photo": raw_upload}
+    yield {**common, "photos_list": files_object}
+    yield {**common, "photos_list": files_list}
+    yield {**common, "file": files_object}
+    yield {**common, "file": files_list}
+    yield {**common, "file1": files_object}
+    yield {**common, "file1": files_list}
 
 def save_message_photos(vk, upload_payload):
     last_error = None
