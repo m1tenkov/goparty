@@ -66,6 +66,47 @@ def save_message_photos(vk, upload_payload):
         raise last_error
     return []
 
+def iter_photos_save_payloads(upload_payload):
+    files_payload = upload_payload.get("files") or {}
+    file_values = list(files_payload.values())
+    files_object = json.dumps(files_payload, ensure_ascii=False)
+    files_list = json.dumps(file_values, ensure_ascii=False)
+    raw_upload = json.dumps(upload_payload, ensure_ascii=False)
+    group_id = abs(int(upload_payload.get("group_id") or 0)) or None
+    album_id = upload_payload.get("album_id")
+    common = {
+        "server": upload_payload.get("server"),
+        "hash": upload_payload.get("hash"),
+    }
+    if group_id:
+        common["group_id"] = group_id
+    if album_id is not None:
+        common["album_id"] = album_id
+
+    yield {**common, "photos_list": files_object}
+    yield {**common, "photos_list": files_list}
+    yield {**common, "photos_list": raw_upload}
+    yield {**common, "photo": files_object}
+    yield {**common, "photo": files_list}
+    yield {**common, "photo": raw_upload}
+
+
+def save_photo_album(vk, upload_payload):
+    last_error = None
+    for index, save_payload in enumerate(iter_photos_save_payloads(upload_payload), start=1):
+        print(f"album_save_variant_{index}={save_payload}")
+        try:
+            uploaded = vk.photos.save(**save_payload)
+        except Exception as error:
+            last_error = error
+            print(f"album_save_variant_{index}_error={error}")
+            continue
+        print(f"album_save_variant_{index}_ok=True")
+        return uploaded
+    if last_error:
+        raise last_error
+    return []
+
 def main():
     parser = argparse.ArgumentParser(description="Test VK message photo upload from a local file.")
     parser.add_argument("photo_path", help="Photo path relative to the project root, for example storage/photos/147991194/1.jpg")
@@ -98,7 +139,14 @@ def main():
     print(f"upload_text={raw_response.text[:2000]}")
     upload_payload = raw_response.json()
 
-    uploaded = save_message_photos(vk, upload_payload)
+    try:
+        uploaded = save_message_photos(vk, upload_payload)
+        save_method = "saveMessagesPhoto"
+    except Exception as message_error:
+        print(f"saveMessagesPhoto_all_variants_failed={message_error}")
+        uploaded = save_photo_album(vk, upload_payload)
+        save_method = "photos.save"
+    print(f"save_method={save_method}")
     print(f"uploaded={uploaded}")
 
     attachments = []
