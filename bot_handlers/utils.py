@@ -8,7 +8,7 @@ from urllib.parse import urlparse
 import hashlib
 import requests
 
-from config import BASE_DIR, GROUP_ID, PHOTO_STORAGE_DIR
+from config import BASE_DIR, PHOTO_STORAGE_DIR
 from logger import log_action
 from database import (
     DEFAULT_FILTERS,
@@ -498,20 +498,6 @@ def _extract_vk_photo_token(photo):
     return token
 
 
-def _photo_token_owner_id(token):
-    token_value = str(token or "").strip()
-    if token_value.startswith("photo"):
-        token_value = token_value[5:]
-    parts = token_value.split("_")
-    if len(parts) < 2 or not parts[0].lstrip("-").isdigit():
-        return None
-    return int(parts[0])
-
-
-def _is_bot_message_photo_token(token):
-    return _photo_token_owner_id(token) == -abs(int(GROUP_ID))
-
-
 def _is_vk_photo_token_valid(vk, token):
     if vk is None or not token:
         return False
@@ -718,8 +704,7 @@ def build_photo_attachment(vk_or_profile, profile=None, peer_id=None):
         absolute_path = resolve_local_photo_path(path) if _is_local_photo_reference(path) else None
         has_local_file = bool(absolute_path and absolute_path.exists())
         formatted_token = _format_vk_photo_attachment(token)
-        should_reupload_user_photo = bool(has_local_file and formatted_token and not _is_bot_message_photo_token(formatted_token))
-        if formatted_token and not should_reupload_user_photo and (vk is None or _is_vk_photo_token_valid(vk, formatted_token)):
+        if formatted_token and (has_local_file or vk is None or _is_vk_photo_token_valid(vk, formatted_token)):
             attachments.append(formatted_token)
             continue
         if token:
