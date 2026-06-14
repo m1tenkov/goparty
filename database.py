@@ -916,11 +916,6 @@ def get_random_candidate(vk_user_id, filters=None):
           )
           AND EXISTS (
               SELECT 1
-              FROM user_games candidate_games
-              WHERE candidate_games.user_id = u.id
-          )
-          AND EXISTS (
-              SELECT 1
               FROM user_photos candidate_photos
               WHERE candidate_photos.user_id = u.id
           )
